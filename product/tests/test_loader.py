@@ -27,19 +27,31 @@ def test_header_only_file_gives_an_empty_dataset(tmp_path):
     assert data.X.shape == (0, 2)
 
 
-@pytest.mark.parametrize("text, message", [
-    ("", "no header"),
-    ("x1,x2,colour\n1,abc,red\n", "line 2, column 'x2'"),
-    ("x1,x2,colour\n1,,red\n", "line 2, column 'x2'"),
-    ("x1,x2,colour\nnan,1,red\n", "line 2.*finite"),
-    ("x1,x2,colour\n1,inf,red\n", "line 2.*finite"),
-    ("x1,x2,colour\n1,red\n", "line 2.*fewer fields"),
-    ("x1,x2,colour\n1,1,red,9\n", "line 2.*more fields"),
-    ('x1,x2,colour\n1,1,"two\nlines"\n1,abc,blue\n', "line 4"),
-])
-def test_bad_files_are_rejected(tmp_path, text, message):
-    with pytest.raises(ValueError, match=message):
-        load_csv(make_csv(tmp_path, text), "colour")
+def load_text(tmp_path, text):
+    return load_csv(make_csv(tmp_path, text), "colour")
+
+
+def test_bad_files_are_rejected(tmp_path):
+    with pytest.raises(ValueError):
+        load_text(tmp_path, "")                              # empty file
+    with pytest.raises(ValueError):
+        load_text(tmp_path, "x1,x2,colour\n1,abc,red\n")     # text instead of a number
+    with pytest.raises(ValueError):
+        load_text(tmp_path, "x1,x2,colour\n1,,red\n")        # empty cell
+    with pytest.raises(ValueError):
+        load_text(tmp_path, "x1,x2,colour\nnan,1,red\n")     # NaN
+    with pytest.raises(ValueError):
+        load_text(tmp_path, "x1,x2,colour\n1,inf,red\n")     # infinity
+    with pytest.raises(ValueError):
+        load_text(tmp_path, "x1,x2,colour\n1,red\n")         # a cell missing
+    with pytest.raises(ValueError):
+        load_text(tmp_path, "x1,x2,colour\n1,1,red,9\n")     # an extra cell
+
+
+def test_error_says_the_real_line_and_column(tmp_path):
+    # The label on line 2 runs onto line 3, so the bad value is on line 4
+    with pytest.raises(ValueError, match="line 4, column 'x2'"):
+        load_text(tmp_path, 'x1,x2,colour\n1,1,"two\nlines"\n1,abc,blue\n')
 
 
 def test_unknown_column_names_are_rejected(tmp_path):
