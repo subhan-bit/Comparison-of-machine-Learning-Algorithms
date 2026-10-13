@@ -1,4 +1,6 @@
 stages:
+  - build
+  - lint
   - test
 
 variables:
@@ -8,14 +10,28 @@ cache:
   paths:
     - .cache/pip
 
-test:
-  stage: test
-  script:
+default:
+  before_script:
     - python3 --version
     - cd product
     - python3 -m venv .venv
     - source .venv/bin/activate
     - pip install --upgrade pip
     - pip install -r requirements-dev.txt
-    - pytest --cov=ml_comparison --cov-report=term-missing
+
+build:
+  stage: build
+  script:
+    - pip install -e .
+    - python -c "import ml_comparison"
+
+lint:
+  stage: lint
+  script:
+    - ruff check src tests
+
+test:
+  stage: test
+  script:
+    - pytest --cov=ml_comparison --cov-report=term-missing --cov-fail-under=90
   coverage: '/^TOTAL.+?(\d+%)$/'
