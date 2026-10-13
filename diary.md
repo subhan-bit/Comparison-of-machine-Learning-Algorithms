@@ -1,5 +1,17 @@
 # Diary
 
+## Week 3
+- Finished the Week 2 work (issue #4), with Claude Code's help (see AI.md):
+  - Research note on the four tie-breaking strategies, with a worked example where k=4 gives a 2-2 tie.
+  - Artificial data sets (blobs, XOR, circles) with a fixed seed, so the same seed always gives the same data.
+  - A k-NN classifier that follows the Classifier interface. Its scores are the share of the vote for each class. It gets 100% on blobs and 97.5% on XOR, which no straight line can split.
+  - The four tie-breaking strategies: random (seeded), nearest label, reduce k and distance-weighted (Dudani).
+- What I learnt: before adding the strategies, a 2-2 tie at k=4 was decided by alphabetical order, so "blue" won only because it comes before "red". Three of the four strategies pick red on the same example. This showed me why RQ1 matters: a hidden default can decide the answer.
+- Decided to keep the scores as plain vote shares and let the strategy only decide ties, so the ROC curves later use the real votes.
+- Moved the k-NN notes into documents/knn and brought the README up to date.
+- Change from the plan: I am writing the report in Word using the department's template, not Overleaf.
+- Next: count how often ties happen on each data set (RQ1), then decision trees (Weeks 3 to 4).
+
 ## Week 2
 - Switched from Java to Python, with my supervisor's agreement. NumPy, Matplotlib and pytest let me spend more time on the algorithms (see section 5 of the plan).
 - Rebuilt the base in Python: Dataset, the abstract Classifier and load_csv, each with pytest tests.
