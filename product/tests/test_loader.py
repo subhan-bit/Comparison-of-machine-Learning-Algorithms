@@ -22,6 +22,34 @@ def test_drops_id_and_blank_columns(tmp_path):
     assert data.X.tolist() == [[1.0]]
 
 
+def test_blank_column_only_in_the_header_is_ignored(tmp_path):
+    # The real Breast Cancer file: only the header ends with a comma, the rows don't
+    data = load_text(tmp_path, "x1,x2,colour,\n1,1,red\n4,4,blue\n")
+    assert data.X.tolist() == [[1.0, 1.0], [4.0, 4.0]]
+
+
+def test_file_without_a_header_uses_the_given_column_names(tmp_path):
+    # Like the UCI files (Wine, Spambase), which have no header row
+    file = make_csv(tmp_path, "1,1,red\n4,4,blue\n")
+    data = load_csv(file, "colour", column_names=["x1", "x2", "colour"])
+    assert data.X.tolist() == [[1.0, 1.0], [4.0, 4.0]]
+    assert list(data.y) == ["red", "blue"]
+
+
+def test_values_separated_by_spaces(tmp_path):
+    # Like German Credit: spaces between values, and spaces at the start of each line
+    file = make_csv(tmp_path, "   1   6  good\n  4  4   bad\n")
+    data = load_csv(file, "label", column_names=["x1", "x2", "label"], whitespace=True)
+    assert data.X.tolist() == [[1.0, 6.0], [4.0, 4.0]]
+    assert list(data.y) == ["good", "bad"]
+
+
+def test_line_numbers_start_at_1_without_a_header(tmp_path):
+    file = make_csv(tmp_path, "1,1,red\n1,abc,blue\n")
+    with pytest.raises(ValueError, match="line 2"):
+        load_csv(file, "colour", column_names=["x1", "x2", "colour"])
+
+
 def test_header_only_file_gives_an_empty_dataset(tmp_path):
     data = load_csv(make_csv(tmp_path, "x1,x2,colour\n"), "colour")
     assert data.X.shape == (0, 2)
