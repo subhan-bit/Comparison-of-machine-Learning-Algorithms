@@ -62,6 +62,47 @@ def test_bad_settings_are_rejected():
         KNN(k=10).train(DOTS)           # more neighbours than training points
 
 
+def test_k4_is_a_tie_and_the_scores_show_it():
+    model = KNN(k=4)
+    model.train(DOTS)
+    # 2 blue votes and 2 red votes: the scores stay as plain vote shares
+    assert model.predict_scores(Q).tolist() == [[0.5, 0.5]]
+
+
+def test_nearest_reduce_k_and_weighted_all_pick_red():
+    # the same answers as the worked example in documents/knn/knn_tie_breaking.md
+    for strategy in ["nearest", "reduce_k", "weighted"]:
+        model = KNN(k=4, tie_break=strategy)
+        model.train(DOTS)
+        assert model.predict(Q).tolist() == ["red"], strategy
+
+
+def test_random_is_repeatable_with_a_seed_and_can_pick_either():
+    answers = []
+    for seed in range(20):
+        model = KNN(k=4, tie_break="random", seed=seed)
+        model.train(DOTS)
+        answers.append(model.predict(Q)[0])
+        # the same seed always gives the same answer
+        again = KNN(k=4, tie_break="random", seed=seed)
+        again.train(DOTS)
+        assert again.predict(Q)[0] == answers[-1]
+    assert set(answers) == {"red", "blue"}
+
+
+def test_weighted_falls_back_to_nearest_when_the_weights_tie():
+    # two points exactly as far from Q: their weights are equal too
+    data = Dataset([[0, 1], [0, -1]], ["red", "blue"])
+    model = KNN(k=2, tie_break="weighted")
+    model.train(data)
+    assert model.predict([[0, 0]]).tolist() == ["red"]  # red comes first in the data
+
+
+def test_unknown_tie_break_is_rejected():
+    with pytest.raises(ValueError):
+        KNN(tie_break="coin flip")
+
+
 def test_follows_the_classifier_rules():
     model = KNN(k=1)
     with pytest.raises(RuntimeError):
