@@ -10,9 +10,11 @@ and stops with a clear error when something is wrong.
 - Id column. A number that names the patient or transaction but says
   nothing about the label. If it stays in, it swamps the distances in k-NN
   (an id like 842302 against features around 10 to 20). Drop it.
-- Empty last column. If every row ends with a comma, the file has an extra
-  column with no name. Kaggle notebooks for the Breast Cancer data often drop
-  a column called "Unnamed: 32", which is this empty column [3]. Skip it.
+- Blank column name in the header. In the real Breast Cancer file only the
+  header row ends with a comma, so it names 33 columns (the last one blank)
+  while every data row has 32 values. I first assumed every row ended with a
+  comma, but checking the downloaded file showed it does not. Kaggle notebooks
+  call this column "Unnamed: 32" [3]. load_csv skips columns with a blank name.
 - Byte order mark (BOM). An invisible character some programs (for example
   Excel) put at the very start of a UTF-8 file [2]. It sticks to the first
   column name, so "id" is read as "﻿id" and dropping "id" fails.
@@ -28,14 +30,14 @@ and stops with a clear error when something is wrong.
 A file in the same layout as the Breast Cancer data (values made up):
 
     id,diagnosis,radius_mean,texture_mean,
-    842302,M,17.99,10.38,
-    842517,B,13.54,14.36,
+    842302,M,17.99,10.38
+    842517,B,13.54,14.36
 
 load_csv(file, "diagnosis", drop_columns=["id"]) gives:
-- X = [[17.99, 10.38], [13.54, 14.36]] (id and the empty column are gone)
+- X = [[17.99, 10.38], [13.54, 14.36]] (id and the blank column are gone)
 - y = ["M", "B"], classes = ["B", "M"], codes = [1, 0]
 
-If the second row were "842517,B,abc,14.36," the error would say
+If the second row were "842517,B,abc,14.36" the error would say
 "line 3, column 'radius_mean': 'abc' is not a number".
 
 ## Why it matters for my project
@@ -51,7 +53,8 @@ If the second row were "842517,B,abc,14.36," the error would say
 - Normalisation methods (min-max and z-score) and how each affects k-NN.
 - Turning text attributes into numbers. German Credit has categories like
   "own house" that need encoding (for example one-hot).
-- Check the real Breast Cancer and fraud files once downloaded.
+- (Done) Checked the real files once downloaded. What each one looks like,
+  and how to load it, is in data_sets.md.
 
 ## Sources
 [1] Python documentation: csv (https://docs.python.org/3/library/csv.html)
