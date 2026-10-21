@@ -1,5 +1,9 @@
 # Diary
 
+## Week 4
+- No project commits this week. I am working on other modules because I have a marked quiz and other assignment deadlines this week.
+- Next: when I come back, count how often ties happen on each data set (RQ1), then start decision trees.
+
 ## Week 3
 - Finished the Week 2 work (issue #4), with Claude Code's help (see AI.md):
   - Research note on the four tie-breaking strategies, with a worked example where k=4 gives a 2-2 tie.
