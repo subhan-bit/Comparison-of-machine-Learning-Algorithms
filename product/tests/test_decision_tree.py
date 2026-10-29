@@ -123,3 +123,44 @@ def test_bad_tree_settings_are_rejected():
         DecisionTree(max_depth=-1)
     with pytest.raises(ValueError):
         DecisionTree(min_samples_split=1)
+
+
+def test_pruning_removes_a_split_that_only_fits_noise():
+    # the "b" at x=3 is noise: the full tree makes extra splits just to fit it
+    train = Dataset([[1], [2], [3], [4], [5]], ["a", "a", "b", "a", "a"])
+    model = DecisionTree()
+    model.train(train)
+    assert model.count_leaves() == 3
+
+    # on the validation set, x=3 is really "a", so those splits only make things worse
+    model.prune(Dataset([[3], [5]], ["a", "a"]))
+    assert model.root.is_leaf()
+    assert model.predict([[3]]).tolist() == ["a"]
+
+
+def test_pruning_keeps_a_split_that_helps():
+    model = DecisionTree()
+    model.train(Dataset([[1], [2], [3], [4]], ["a", "a", "b", "b"]))
+    model.prune(Dataset([[1], [4]], ["a", "b"]))
+    assert model.count_leaves() == 2
+
+
+def test_pruning_a_noisy_tree_makes_it_smaller_and_no_worse():
+    # blobs where 15% of the training labels have been flipped
+    rng = np.random.default_rng(0)
+    blobs = make_blobs(200, seed=1)
+    flipped = rng.random(len(blobs)) < 0.15
+    noisy = Dataset(blobs.X, np.where(flipped, 1 - blobs.y, blobs.y))
+    validation, test = make_blobs(50, seed=2), make_blobs(100, seed=3)
+
+    model = DecisionTree()
+    model.train(noisy)
+    leaves_before, accuracy_before = model.count_leaves(), accuracy(model, test)
+    model.prune(validation)
+    assert model.count_leaves() < leaves_before
+    assert accuracy(model, test) >= accuracy_before
+
+
+def test_cannot_prune_before_training():
+    with pytest.raises(RuntimeError):
+        DecisionTree().prune(Dataset([[1]], ["a"]))

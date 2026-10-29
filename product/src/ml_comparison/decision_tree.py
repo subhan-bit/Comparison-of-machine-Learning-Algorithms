@@ -122,3 +122,35 @@ class DecisionTree(Classifier):
 
     def _predict_scores(self, X: np.ndarray) -> np.ndarray:
         return np.array([self._leaf_for(point).shares for point in X])
+
+    def count_leaves(self, node=None):
+        node = node or self.root
+        if node.is_leaf():
+            return 1
+        return self.count_leaves(node.left) + self.count_leaves(node.right)
+
+    def prune(self, validation: Dataset) -> None:
+        """Reduced-error pruning: turn a node into a leaf if that is no worse on the validation set."""
+        if self.classes_ is None:
+            raise RuntimeError("call train() before prune()")
+        # give each validation label the same number it had in training
+        position = {label: i for i, label in enumerate(self.classes_)}
+        codes = np.array([position[label] for label in validation.y])
+        self._prune(self.root, validation.X, codes)
+
+    def _prune(self, node, X, codes):
+        """Prune from the bottom up, and return how many validation rows this node gets wrong."""
+        if node.is_leaf():
+            return np.sum(codes != node.shares.argmax())
+
+        goes_left = X[:, node.feature] <= node.threshold
+        wrong_below = (self._prune(node.left, X[goes_left], codes[goes_left])
+                       + self._prune(node.right, X[~goes_left], codes[~goes_left]))
+        wrong_as_leaf = np.sum(codes != node.shares.argmax())
+
+        # a tie goes to the leaf, because the smaller tree is simpler.
+        # So a node that no validation row reaches (0 wrong either way) is also cut.
+        if wrong_as_leaf <= wrong_below:
+            node.feature = node.threshold = node.left = node.right = None
+            return wrong_as_leaf
+        return wrong_below
