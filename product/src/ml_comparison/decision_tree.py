@@ -26,3 +26,31 @@ def misclassification(codes):
     """Misclassification error: 1 - the biggest share. 0 for a pure group."""
     p = class_shares(codes)
     return 1 - p.max()
+
+
+def split_impurity(left, right, measure):
+    """The impurity of a split: each group's impurity, weighted by its size."""
+    n = len(left) + len(right)
+    return len(left) / n * measure(left) + len(right) / n * measure(right)
+
+
+def best_split(X, codes, measure):
+    """Try every feature and threshold, and return (feature, threshold) of the purest split.
+
+    Returns None if no split is possible, because every row has the same values.
+    """
+    X = np.asarray(X, dtype=float)
+    codes = np.asarray(codes)
+    best = None
+    best_score = np.inf
+    for feature in range(X.shape[1]):
+        values = np.unique(X[:, feature])  # each value once, sorted
+        # try a threshold halfway between each pair of neighbouring values
+        for threshold in (values[:-1] + values[1:]) / 2:
+            goes_left = X[:, feature] <= threshold
+            score = split_impurity(codes[goes_left], codes[~goes_left], measure)
+            # only a strictly better score wins, so a tie keeps the first split found
+            if score < best_score:
+                best = (feature, float(threshold))
+                best_score = score
+    return best
