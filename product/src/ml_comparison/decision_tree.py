@@ -2,6 +2,9 @@
 
 import numpy as np
 
+from ml_comparison.classifier import Classifier
+from ml_comparison.dataset import Dataset
+
 
 def class_shares(codes):
     """The share of each class in a group. codes are the labels as numbers."""
@@ -54,3 +57,68 @@ def best_split(X, codes, measure):
                 best = (feature, float(threshold))
                 best_score = score
     return best
+
+
+MEASURES = {"gini": gini, "entropy": entropy, "misclassification": misclassification}
+
+
+class Node:
+    """One node of the tree. A leaf has no question and no children."""
+
+    def __init__(self, shares):
+        self.shares = shares   # the share of each class among the training rows here
+        self.feature = None    # the question is: is X[feature] <= threshold?
+        self.threshold = None
+        self.left = None       # rows where the answer is yes
+        self.right = None      # rows where the answer is no
+
+    def is_leaf(self):
+        return self.left is None
+
+
+class DecisionTree(Classifier):
+    def __init__(self, measure="gini", max_depth=None, min_samples_split=2):
+        if measure not in MEASURES:
+            raise ValueError(f"measure must be one of {list(MEASURES)}, not {measure!r}")
+        if max_depth is not None and max_depth < 0:
+            raise ValueError("max_depth must be 0 or more")
+        if min_samples_split < 2:
+            raise ValueError("min_samples_split must be at least 2")
+        self.measure = MEASURES[measure]
+        self.max_depth = max_depth                  # None means no limit
+        self.min_samples_split = min_samples_split  # a node needs this many rows to split
+
+    def _train(self, data: Dataset) -> None:
+        self.n_classes = len(data.classes)
+        self.root = self._grow(data.X, data.codes, depth=0)
+
+    def _grow(self, X, codes, depth):
+        """Make a node for these rows, and keep splitting until a stopping rule says stop."""
+        node = Node(np.bincount(codes, minlength=self.n_classes) / len(codes))
+        if self._should_stop(codes, depth):
+            return node
+        split = best_split(X, codes, self.measure)
+        if split is None:  # every row is the same, so there is nothing to ask
+            return node
+
+        node.feature, node.threshold = split
+        goes_left = X[:, node.feature] <= node.threshold
+        node.left = self._grow(X[goes_left], codes[goes_left], depth + 1)
+        node.right = self._grow(X[~goes_left], codes[~goes_left], depth + 1)
+        return node
+
+    def _should_stop(self, codes, depth):
+        is_pure = len(np.unique(codes)) == 1
+        too_deep = self.max_depth is not None and depth >= self.max_depth
+        too_small = len(codes) < self.min_samples_split
+        return is_pure or too_deep or too_small
+
+    def _leaf_for(self, point):
+        """Follow the questions from the root down to a leaf."""
+        node = self.root
+        while not node.is_leaf():
+            node = node.left if point[node.feature] <= node.threshold else node.right
+        return node
+
+    def _predict_scores(self, X: np.ndarray) -> np.ndarray:
+        return np.array([self._leaf_for(point).shares for point in X])
