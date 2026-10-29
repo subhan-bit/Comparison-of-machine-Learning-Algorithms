@@ -1,5 +1,16 @@
 # Diary
 
+## Week 5
+- Checked progress against the plan: about two weeks behind. Decision trees (Weeks 3 to 4) had not been started, and the two early reports are due this week.
+- Built decision trees (issue #7), with Claude Code's help (see AI.md), writing the tests first for each step:
+  - Research note on decision trees, with a worked example (6 red, 4 blue gives Gini 0.48, entropy 0.971, misclassification 0.4).
+  - The three impurity measures, and a threshold search that tries every feature and every point halfway between two values.
+  - A DecisionTree class that follows the Classifier interface, with three stopping rules (pure node, max depth, min samples to split). Its scores are the class shares in the leaf, for ROC curves later.
+  - Reduced-error pruning, which turns a node into a leaf if that is no worse on a validation set. On blobs with 15% of the labels flipped, pruning made the tree smaller and its test accuracy no worse.
+- Found an example for RQ2 (Hastie et al.): two splits that misclassification error scores the same (0.25), while Gini prefers the one that makes a pure group (0.333 against 0.375).
+- Known limitation: the threshold search is slow on large data, so the fraud data set will need a subsample.
+- Next: write the two early reports (k-NN tie-breaking, decision trees), count ties on each data set (RQ1), then the evaluation framework (Weeks 6 to 7).
+
 ## Week 4
 - No project commits this week. I am working on other modules because I have a marked quiz and other assignment deadlines this week.
 - Next: when I come back, count how often ties happen on each data set (RQ1), then start decision trees.
