@@ -124,7 +124,8 @@ class DecisionTree(Classifier):
         return np.array([self._leaf_for(point).shares for point in X])
 
     def count_leaves(self, node=None):
-        node = node or self.root
+        if node is None:
+            node = self.root
         if node.is_leaf():
             return 1
         return self.count_leaves(node.left) + self.count_leaves(node.right)
@@ -133,10 +134,18 @@ class DecisionTree(Classifier):
         """Reduced-error pruning: turn a node into a leaf if that is no worse on the validation set."""
         if self.classes_ is None:
             raise RuntimeError("call train() before prune()")
+        if validation.n_features != self.n_features_:
+            raise ValueError(f"validation has {validation.n_features} features "
+                             f"but the model was trained on {self.n_features_}")
+
         # give each validation label the same number it had in training
         position = {label: i for i, label in enumerate(self.classes_)}
-        codes = np.array([position[label] for label in validation.y])
-        self._prune(self.root, validation.X, codes)
+        codes = []
+        for label in validation.y:
+            if label not in position:
+                raise ValueError(f"validation label {label!r} was not in the training data")
+            codes.append(position[label])
+        self._prune(self.root, validation.X, np.array(codes, dtype=int))
 
     def _prune(self, node, X, codes):
         """Prune from the bottom up, and return how many validation rows this node gets wrong."""

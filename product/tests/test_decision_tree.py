@@ -164,3 +164,12 @@ def test_pruning_a_noisy_tree_makes_it_smaller_and_no_worse():
 def test_cannot_prune_before_training():
     with pytest.raises(RuntimeError):
         DecisionTree().prune(Dataset([[1]], ["a"]))
+
+
+def test_bad_validation_sets_are_rejected():
+    model = DecisionTree()
+    model.train(Dataset([[1], [2]], ["a", "b"]))
+    with pytest.raises(ValueError, match="not in the training data"):
+        model.prune(Dataset([[1]], ["c"]))        # a label the tree never saw
+    with pytest.raises(ValueError, match="features"):
+        model.prune(Dataset([[1, 2]], ["a"]))     # wrong number of columns

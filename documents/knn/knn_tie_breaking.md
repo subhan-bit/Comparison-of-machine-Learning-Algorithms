@@ -1,4 +1,4 @@
-# Tie-Breaking in k-NN
+# Tie-breaking in k-NN
 
 ## What it is
 k-NN lets the k nearest neighbours vote, and the label with the most votes
@@ -40,7 +40,7 @@ a tie.
 - Distance-weighted (Dudani): d_1 = 1 and d_4 = 3.61, so the weights are
   B = 1, A = 0.84, C = 0.30, D = 0. Red = 1.84, blue = 0.30: red.
 
-Here three strategies agree, but random would be wrong half the time.
+Here three strategies pick red, and random picks red only half the time.
 
 ## Why it matters for my project
 - RQ1 asks whether the choice of strategy changes the results. To answer it,

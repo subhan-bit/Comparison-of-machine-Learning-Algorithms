@@ -1,4 +1,4 @@
-# The Data Sets
+# The data sets
 
 ## What it is
 The six real data sets from section 4 of my plan. They are kept in a local
@@ -50,7 +50,7 @@ Loading each file:
     load_csv("data/creditcard.csv", "Class")
 
 ## Why it matters for my project
-- Costs are real, not made up. German Credit comes with a cost matrix:
+- Real costs. German Credit comes with its own cost matrix:
   calling a bad customer good costs 5, calling a good customer bad costs 1 [6].
   The Spambase authors say marking good mail as spam is "very undesirable" [5].
   These give the cost-sensitive extension real cost ratios to start from.

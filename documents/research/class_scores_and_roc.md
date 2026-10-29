@@ -1,4 +1,4 @@
-# Class Scores and ROC Curves
+# Class scores and ROC curves
 
 ## What it is
 A classifier can give back just a label ("fraud"), or a score for each class

@@ -1,4 +1,4 @@
-"""The rulebook that every algorithm follows."""
+"""The abstract Classifier class that every algorithm follows."""
 
 from abc import ABC, abstractmethod
 
@@ -8,7 +8,7 @@ from ml_comparison.dataset import Dataset
 
 
 class Classifier(ABC):
-    """Every algorithm (k-NN, tree, SVM) fills in _train and _predict_scores.
+    """Every algorithm (k-NN, the decision tree, and the SVM later) fills in _train and _predict_scores.
 
     The public methods train, predict_scores and predict do the checks,
     so each algorithm doesn't have to repeat them.

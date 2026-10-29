@@ -1,4 +1,4 @@
-# Preparing CSV Data
+# Preparing CSV data
 
 ## What it is
 The Kaggle data sets come as CSV files: a header row with the column names,

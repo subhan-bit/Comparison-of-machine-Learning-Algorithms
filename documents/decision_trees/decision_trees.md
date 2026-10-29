@@ -1,4 +1,4 @@
-# Decision Trees
+# Decision trees
 
 ## What it is
 A decision tree predicts a label by asking a short list of yes/no questions
@@ -56,8 +56,9 @@ including its noise, so it overfits [1].
 - The plan compares the three impurity measures (RQ2). The example above
   shows they can pick different splits.
 - The class shares in a leaf are the tree's scores, which ROC curves need.
-- Trees are not affected by normalising the features, because a threshold
-  only cares about order. This is a useful contrast with k-NN (RQ3).
+- Normalising the features should make no difference to a tree, because a
+  threshold only cares about order. For k-NN it changes the distances, so
+  RQ3 can compare the two.
 
 ## Still to learn
 - How entropy and Gini compare on the real data sets.
