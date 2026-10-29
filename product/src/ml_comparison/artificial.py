@@ -23,7 +23,7 @@ def make_xor(n, seed):
     """n points in a square; label 1 when x and y have the same sign."""
     rng = np.random.default_rng(seed)
 
-    # n points spread evenly between -1 and 1 in both directions
+    # n random points, with x and y each anywhere between -1 and 1
     X = rng.uniform(-1, 1, size=(n, 2))
 
     # same sign means both positive or both negative

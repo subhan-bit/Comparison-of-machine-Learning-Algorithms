@@ -9,6 +9,10 @@ def make_csv(tmp_path, text):
     return file
 
 
+def load_text(tmp_path, text):
+    return load_csv(make_csv(tmp_path, text), "colour")
+
+
 def test_reads_features_and_labels(tmp_path):
     data = load_csv(make_csv(tmp_path, "x1,x2,colour\n1,1,red\n4,4,blue\n"), "colour")
     assert data.X.tolist() == [[1.0, 1.0], [4.0, 4.0]]
@@ -53,10 +57,6 @@ def test_line_numbers_start_at_1_without_a_header(tmp_path):
 def test_header_only_file_gives_an_empty_dataset(tmp_path):
     data = load_csv(make_csv(tmp_path, "x1,x2,colour\n"), "colour")
     assert data.X.shape == (0, 2)
-
-
-def load_text(tmp_path, text):
-    return load_csv(make_csv(tmp_path, text), "colour")
 
 
 def test_bad_files_are_rejected(tmp_path):

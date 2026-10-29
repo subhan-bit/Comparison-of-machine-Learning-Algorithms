@@ -24,14 +24,17 @@ reducing multi-class problems to binary ones.
 ## Status
 Done: the Python base (Dataset, a CSV loader, the abstract Classifier with a
 score for each class), Euclidean and Manhattan distance, artificial data
-(blobs, XOR, circles), and the six real data sets checked and documented.
-In progress: 1-NN and k-NN with four tie-breaking strategies.
+(blobs, XOR, circles), the six real data sets checked and documented, k-NN
+with four tie-breaking strategies, and decision trees with three impurity
+measures, stopping rules and reduced-error pruning.
+Next: the evaluation framework (hold-out split, cross-validation, ROC).
 See `diary.md` for the weekly log.
 
 ## Repository layout
 ```
 documents/   project plan and research notes
   knn/       notes on k-NN and tie-breaking
+  decision_trees/  notes on decision trees, impurity and pruning
   research/  notes on data, class scores and ROC curves
 product/     Python source code and tests
   src/ml_comparison/   the package
