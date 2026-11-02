@@ -10,6 +10,13 @@ DISTANCES = {"euclidean": euclidean, "manhattan": manhattan}
 TIE_BREAKS = ["random", "nearest", "reduce_k", "weighted"]
 
 
+def has_tie(scores):
+    """For each row of scores, True if two or more classes share the top score."""
+    scores = np.asarray(scores)
+    top = scores.max(axis=1, keepdims=True)
+    return (scores == top).sum(axis=1) > 1
+
+
 class KNN(Classifier):
     def __init__(self, k=1, distance="euclidean", tie_break="nearest", seed=None):
         if k < 1:
