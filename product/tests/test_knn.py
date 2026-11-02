@@ -3,7 +3,7 @@ import pytest
 
 from ml_comparison.artificial import make_blobs, make_xor
 from ml_comparison.dataset import Dataset
-from ml_comparison.knn import KNN
+from ml_comparison.knn import KNN, has_tie
 
 # The dots from documents/knn/knn.md: A, B red and C, D, E blue
 DOTS = Dataset([[1, 1], [2, 1], [4, 4], [5, 4], [4, 5]],
@@ -110,3 +110,18 @@ def test_follows_the_classifier_rules():
     model.train(DOTS)
     with pytest.raises(ValueError):
         model.predict([[1, 2, 3]])      # wrong number of columns
+
+
+def test_has_tie_finds_rows_where_the_top_score_is_shared():
+    scores = [[0.5, 0.5], [0.75, 0.25], [0.25, 0.75]]
+    assert has_tie(scores).tolist() == [True, False, False]
+    # three classes: two of them share the top score
+    assert has_tie([[0.4, 0.4, 0.2]]).tolist() == [True]
+
+
+def test_has_tie_on_the_example_from_the_notes():
+    # k=4 gives 2 red and 2 blue votes for Q, but k=3 does not tie
+    for k, expected in [(3, False), (4, True)]:
+        model = KNN(k=k)
+        model.train(DOTS)
+        assert has_tie(model.predict_scores(Q)).tolist() == [expected]
