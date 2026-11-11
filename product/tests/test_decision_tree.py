@@ -154,6 +154,25 @@ def test_pruning_keeps_a_split_that_helps():
     assert model.count_leaves() == 2
 
 
+def test_pruning_rejects_an_empty_validation_set():
+    model = DecisionTree()
+    model.train(Dataset([[1], [2]], ["a", "b"]))
+    with pytest.raises(ValueError, match="empty"):
+        model.prune(Dataset([], []))
+
+
+def test_pruning_keeps_a_split_that_no_validation_row_reaches():
+    # left of 6 is "b"; right of 6 splits again at 12.5 (3 leaves in all)
+    train = Dataset([[1], [2], [10], [11], [12], [13]], ["b", "b", "a", "a", "a", "b"])
+    model = DecisionTree()
+    model.train(train)
+    assert model.count_leaves() == 3
+
+    # the validation rows are all on the left, so nothing shows the right split is bad
+    model.prune(Dataset([[1], [2]], ["b", "b"]))
+    assert model.count_leaves() == 3
+
+
 def test_pruning_a_noisy_tree_makes_it_smaller_and_no_worse():
     # blobs where 15% of the training labels have been flipped
     rng = np.random.default_rng(0)

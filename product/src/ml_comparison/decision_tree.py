@@ -143,6 +143,8 @@ class DecisionTree(Classifier):
         """Reduced-error pruning: turn a node into a leaf if that is no worse on the validation set."""
         if self.classes_ is None:
             raise RuntimeError("call train() before prune()")
+        if len(validation) == 0:
+            raise ValueError("the validation set is empty, so there is nothing to prune with")
         if validation.n_features != self.n_features_:
             raise ValueError(f"validation has {validation.n_features} features "
                              f"but the model was trained on {self.n_features_}")
@@ -160,14 +162,15 @@ class DecisionTree(Classifier):
         """Prune from the bottom up, and return how many validation rows this node gets wrong."""
         if node.is_leaf():
             return np.sum(codes != node.shares.argmax())
+        if len(codes) == 0:
+            return 0  # no validation row gets here, so there is no evidence to prune it
 
         goes_left = X[:, node.feature] <= node.threshold
         wrong_below = (self._prune(node.left, X[goes_left], codes[goes_left])
                        + self._prune(node.right, X[~goes_left], codes[~goes_left]))
         wrong_as_leaf = np.sum(codes != node.shares.argmax())
 
-        # a tie goes to the leaf, because the smaller tree is simpler.
-        # So a node that no validation row reaches (0 wrong either way) is also cut.
+        # a tie goes to the leaf, because the smaller tree is simpler
         if wrong_as_leaf <= wrong_below:
             node.feature = node.threshold = node.left = node.right = None
             return wrong_as_leaf
