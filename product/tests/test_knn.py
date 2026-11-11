@@ -62,6 +62,13 @@ def test_bad_settings_are_rejected():
         KNN(k=10).train(DOTS)           # more neighbours than training points
 
 
+def test_k_must_be_a_whole_number():
+    for bad in (2.5, True, "3"):
+        with pytest.raises(TypeError, match="k must be a whole number"):
+            KNN(k=bad)
+    assert KNN(k=3.0).k == 3  # a whole float is fine
+
+
 def test_k4_is_a_tie_and_the_scores_show_it():
     model = KNN(k=4)
     model.train(DOTS)

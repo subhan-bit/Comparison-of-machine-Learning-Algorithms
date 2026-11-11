@@ -251,6 +251,9 @@ def test_depth_and_split_size_must_be_whole_numbers():
         DecisionTree(max_depth="a")
     with pytest.raises(TypeError, match="whole number"):
         DecisionTree(min_samples_split=2.5)
+    # a whole float, such as one read from a config file, is fine
+    model = DecisionTree(max_depth=3.0, min_samples_split=4.0)
+    assert (model.max_depth, model.min_samples_split) == (3, 4)
 
 
 def test_pruning_removes_a_split_that_only_fits_noise():

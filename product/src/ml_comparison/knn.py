@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from ml_comparison.checks import check_whole_number
 from ml_comparison.classifier import Classifier
 from ml_comparison.dataset import Dataset
 from ml_comparison.distances import euclidean, manhattan
@@ -19,6 +20,7 @@ def has_tie(scores):
 
 class KNN(Classifier):
     def __init__(self, k=1, distance="euclidean", tie_break="nearest", seed=None):
+        k = check_whole_number("k", k)
         if k < 1:
             raise ValueError("k must be at least 1")
         if distance not in DISTANCES:
