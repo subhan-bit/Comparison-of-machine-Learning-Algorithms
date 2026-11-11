@@ -113,6 +113,10 @@ def test_without_tied_distances_the_votes_match_a_plain_full_sort():
         assert model.predict_scores(queries) == pytest.approx(expected / k)
 
 
+def test_the_default_k_is_one():
+    assert KNN().k == 1
+
+
 def test_k_must_be_a_whole_number():
     for bad in (2.5, True, "3"):
         with pytest.raises(TypeError, match="k must be a whole number"):
