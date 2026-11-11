@@ -67,6 +67,15 @@ def test_predict_rejects_values_that_are_not_finite():
                 model.predict_scores([[1, bad]])
 
 
+def test_a_query_with_no_rows_gives_no_answers():
+    # an empty table is a fine thing to ask about: k-NN already answered with nothing,
+    # but the tree raised "scores must have shape (0, 2), got (0,)"
+    for model in (KNN(k=1), DecisionTree()):
+        model.train(Dataset([[0], [1]], ["a", "b"]))
+        assert model.predict(np.zeros((0, 1))).tolist() == []
+        assert model.predict_scores(np.zeros((0, 1))).shape == (0, 2)
+
+
 def test_wrong_score_shape_is_rejected():
     class Broken(AlwaysFirst):
         def _predict_scores(self, X):

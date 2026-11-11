@@ -190,7 +190,11 @@ class DecisionTree(Classifier):
         return node
 
     def _predict_scores(self, X: np.ndarray) -> np.ndarray:
-        return np.array([self._leaf_for(point).scores for point in X])
+        # one row per point; a fixed shape, so a query with no rows still gives shape (0, classes)
+        scores = np.zeros((len(X), self.n_classes))
+        for row, point in enumerate(X):
+            scores[row] = self._leaf_for(point).scores
+        return scores
 
     def count_leaves(self):
         """How many leaves the tree has (a smaller tree is a simpler one)."""
