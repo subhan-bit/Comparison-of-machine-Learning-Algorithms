@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ml-comparison"
 version = "0.1.0"
 description = "From-scratch k-NN, decision tree and SVM comparison"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = ["numpy", "matplotlib"]
 
 [tool.setuptools.packages.find]

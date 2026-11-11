@@ -44,13 +44,13 @@ diary.md     weekly progress log
 ```
 
 ## Getting started
-Requires Python 3.11 or newer. First check which version `python3` is:
+Requires Python 3.12 or newer. First check which version `python3` is:
 ```
 python3 --version
 ```
-If it says 3.11 or newer, use `python3` below. If it is older (the Python that
-comes with macOS is 3.9, and some Linux systems have 3.10), install a newer
-Python and use its name in the first command instead, for example
+If it says 3.12 or newer, use `python3` below. If it is older (the Python that
+comes with macOS is 3.9, and some Linux systems have 3.10 or 3.11), install a
+newer Python and use its name in the first command instead, for example
 `python3.12 -m venv .venv`. With an older Python the install fails with a
 confusing "No matching distribution found for numpy" error. The other commands
 stay the same. Then, from the `product` folder:

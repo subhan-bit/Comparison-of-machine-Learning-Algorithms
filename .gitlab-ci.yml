@@ -11,7 +11,7 @@ cache:
     - .cache/pip
 
 default:
-  image: python:3.12  # a fixed Python (3.11 or newer is required), not whatever the runner has
+  image: python:3.12  # a fixed Python (3.12 or newer is required), not whatever the runner has
   before_script:
     - python3 --version
     - cd product
