@@ -4,8 +4,10 @@
 RQ1 asks whether the tie-breaking strategy changes k-NN's results. A strategy
 only does something when the vote is a tie, so the first step is to count how
 often that happens on the real data sets. A tie here means two or more classes
-share the most votes (has_tie in knn.py). Ties in distance, where several
-points are equally far for the k-th place, are not counted.
+share the most votes (has_tie in knn.py). If several points are equally far
+for the k-th place, they all vote, so there can be more than k votes (see
+knn_tie_breaking.md). The table below is from the run after that rule was
+added; the Spambase row is the only one that moved.
 
 ## How I counted
 scripts/count_ties.py does this for each data set:
@@ -24,14 +26,16 @@ numbers would move a little with a different seed.
 | Iris | 3 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
 | Wine | 3 | 0.0 | 3.7 | 0.0 | 3.7 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 1.9 |
 | Breast Cancer | 2 | 0.0 | 4.7 | 0.0 | 1.8 | 0.0 | 2.3 | 0.0 | 1.8 | 0.0 | 0.6 |
-| Spambase | 2 | 0.0 | 12.2 | 0.0 | 6.2 | 0.0 | 4.3 | 0.0 | 3.5 | 0.0 | 3.3 |
+| Spambase | 2 | 0.1 | 11.8 | 0.1 | 5.9 | 0.2 | 3.9 | 0.0 | 3.5 | 0.4 | 3.3 |
 | German Credit | 2 | 0.0 | 38.7 | 0.0 | 22.0 | 0.0 | 15.0 | 0.0 | 11.7 | 0.0 | 8.7 |
 | Credit Card Fraud | 2 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
 
 ## What the numbers show
-- With two classes and an odd k there can never be a tie, because an odd
-  number of votes cannot split evenly. Every odd column for the two-class
-  data sets is 0, as expected.
+- With two classes and k voters, an odd k cannot tie, because an odd number
+  of votes cannot split evenly. So the odd columns of the two-class data sets
+  are 0, with one exception: Spambase has points at exactly the same
+  distance, so more than k points can vote and the number of voters can be
+  even. Its odd columns are small but not 0 (0.1 to 0.4%).
 - With an even k, ties are common, and German Credit has by far the most:
   at k=2, 38.7% of test points tie. This suggests its two classes overlap a
   lot, so a point's nearest neighbours often disagree.
@@ -54,7 +58,8 @@ numbers would move a little with a different seed.
 ## Still to learn
 - Whether the counts change much with other random splits. Cross-validation
   (Weeks 6 to 7) will give an average over several splits.
-- How often ties in distance happen, especially in data with repeated values.
+- How often ties in distance happen. In this run only Spambase was affected;
+  the other data sets gave the same counts as before the rule.
 - How much each strategy changes the accuracy at even k (the actual RQ1
   experiment, Week 8).
 

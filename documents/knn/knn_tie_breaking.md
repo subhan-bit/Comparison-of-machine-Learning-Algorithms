@@ -26,13 +26,11 @@ Ties are common:
 
 ## Example
 The dots from knn.md: A (1,1) red, B (2,1) red, C (4,4) blue,
-D (5,4) blue, E (4,5) blue. New dot Q = (2,2).
+D (5,4) blue, E (4,6) blue. New dot Q = (2,2).
 
-Euclidean distances from Q: B = 1, A = 1.41, C = 2.83, D = 3.61, E = 3.61.
+Euclidean distances from Q: B = 1, A = 1.41, C = 2.83, D = 3.61, E = 4.47.
 
-With k=4 the neighbours are B, A, C and one of D or E (they are equally far,
-but both are blue, so it does not matter which). The vote is 2 red, 2 blue:
-a tie.
+With k=4 the neighbours are B, A, C and D. The vote is 2 red, 2 blue: a tie.
 
 - Random: red or blue, each with chance 1/2.
 - Nearest label: the closest neighbour is B, which is red, so red.
@@ -42,6 +40,25 @@ a tie.
 
 Here three strategies pick red, and random picks red only half the time.
 
+## Ties in distance
+This is different from a tie in the vote. E used to be at (4,5), exactly as
+far from Q as D (both 3.61), so the 4th neighbour could be D or E. The first
+version of the code kept whichever came first in the data, so the "2 red,
+2 blue" tie in this example depended on the row order. With both counted, the
+vote is 2 red and 3 blue, and there is no tie at all. I only noticed because
+the fix below broke my own test. So I moved E to (4,6).
+
+The rule now: find the k-th smallest distance, and let every point at that
+distance or closer vote. There can be more than k voters, and the vote shares
+are divided by the number of voters, so they still add up to 1. When no
+distances are tied, nothing changes. Two effects:
+- With two classes and an odd k, the number of voters can be even, so a tie
+  is possible after all (Spambase has points at exactly the same distance).
+- The strategies work on the voters ordered closest first. If the closest
+  points are equally far and in different classes, "nearest label" and
+  "reduce k" fall back to the order of the rows in the data. This is a last
+  resort, and a hidden default, so it is worth remembering for RQ1.
+
 ## Why it matters for my project
 - RQ1 asks whether the choice of strategy changes the results. To answer it,
   I should also count how often ties happen for each data set and each k,
@@ -49,11 +66,14 @@ Here three strategies pick red, and random picks red only half the time.
 - The vote shares are also k-NN's scores for ROC curves. A tie gives two
   labels the same score, so the ROC code must handle equal scores.
 - Random tie-breaking must use a seeded random generator so experiments can
-  be repeated exactly (audit item 7).
+  be repeated exactly (audit item 7). A new generator is made from the seed on
+  every predict call, so the same data always gives the same answers. A
+  generator kept for the whole model gave a different answer each call.
 
 ## Still to learn
-- How to handle ties in distance, where several points are equally far for
-  the k-th place (D and E above). This is different from a tie in the vote.
+- Whether another rule for ties in distance (such as choosing among the
+  tied points at random) would change the results. My rule is that all of
+  them vote.
 - Which strategy scikit-learn and Weka use, since I will check my results
   against them and need to know why answers might differ.
 

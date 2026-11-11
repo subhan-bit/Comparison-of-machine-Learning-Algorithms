@@ -22,8 +22,17 @@
   - A rule that fixes one case can break another. The rule came from the rare case 0, 0, 1, 0, 0, but XOR is a standard test for trees and I did not try it. After changing a stopping or splitting rule I should also run XOR and one other hard case.
   - Checking an audit's claims myself was worth it: I reproduced the hang and the XOR result before changing anything. The audit's exactly balanced XOR needs perfectly symmetric data, which random clusters do not give, so I tested that case separately.
 - Effect on results: the numbers in the report do not change (blobs with misclassification error 4 leaves, pruning 85 leaves down to 2 and 81.0% up to 99.5%). RQ2 now compares the three measures on equal terms. Three smaller audit points are left for when the evaluation framework exists, because they depend on validation sets and AUC: pruning cuts rare-class trees hard, smoothing uses a uniform prior, and unreached nodes are kept.
+- Fixed the k-NN problems from the audit (issue #12, branch feature/knn-fixes) with Claude Code's help (see AI.md), writing a failing test first, in four code commits:
+  - k must be a whole number, with a clear error (2.5, True and "3" are rejected). The check is shared with the decision tree, and both now accept a whole float such as 3.0.
+  - The model keeps its own copy of the training data, so changing the original Dataset afterwards cannot change it. Score comparisons use np.isclose, because 0.1 + 0.2 and 0.3 are the same score but not equal in Python.
+  - The random tie-break is repeatable: a new generator is made from the seed on every predict call. Before, predicting the same tied point 12 times with one seed gave both answers.
+  - Ties in distance: every point tied at the k-th distance now votes, so row order no longer decides who the k-th neighbour is. The k-th distance is found with a partial sort, not a full sort.
+- What I learnt from issue #12:
+  - My own worked example depended on row order. E at (4,5) was exactly as far from Q as D, so the "2 red, 2 blue tie at k=4" only happened because the old code dropped E. I only noticed because the new rule broke five of my tests. I moved E to (4,6): every answer in the example stayed the same and k=4 is now a real tie. This is the same kind of hidden default as the alphabetical order in Week 3.
+  - A new rule can have side effects on a claim I made. With tied distances more than k points vote, so with two classes an odd k can tie after all. It did on Spambase (0.1 to 0.4% at odd k), and the notes now say so.
+- Effect on results: only the Spambase row of the tie table moves (12.2 to 11.8 at k=2, 6.2 to 5.9 at k=4, 4.3 to 3.9 at k=6); the other data sets give the same counts. The Word report still has the old table and the old example point, and will be updated after issue #15 regenerates the table.
 - Behind plan: the audit fixes took the time, so the evaluation framework has not started and the two early reports are still to be written.
-- Next: the other audit groups (k-NN, the tie-count script and its uninformative fraud row, set-up problems), then the early reports and the evaluation framework.
+- Next: the other audit groups (data checks, set-up problems, the tie-count script and its uninformative fraud row, the remaining tree points), then the early reports and the evaluation framework.
 
 ## Week 6
 - Decision trees (issue #7) merged into main on GitLab and mirrored to GitHub.
