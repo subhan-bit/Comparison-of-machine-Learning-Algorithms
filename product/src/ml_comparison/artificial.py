@@ -6,7 +6,7 @@ from ml_comparison.dataset import Dataset
 
 
 def make_blobs(n, seed):
-    """Two clouds of points: class 0 around (0, 0) and class 1 around (5, 5)."""
+    """Two clouds of n points each (2n in all): class 0 around (0, 0), class 1 around (5, 5)."""
     rng = np.random.default_rng(seed)
 
     # n points around each centre, with a spread (standard deviation) of 1
@@ -20,7 +20,12 @@ def make_blobs(n, seed):
 
 
 def make_xor(n, seed):
-    """n points in a square; label 1 when x and y have the same sign."""
+    """n points in all, in a square; label 1 when x and y have the same sign.
+
+    Unlike make_blobs and make_circles, n is the total number of points, not the number
+    per class: the label comes from where each random point lands, so the two classes
+    are only about the same size.
+    """
     rng = np.random.default_rng(seed)
 
     # n random points, with x and y each anywhere between -1 and 1
@@ -37,7 +42,7 @@ def make_xor(n, seed):
 
 
 def make_circles(n, seed):
-    """n points on a circle of radius 1 (class 0) and n on radius 3 (class 1)."""
+    """n points on a circle of radius 1 (class 0) and n on radius 3 (class 1), 2n in all."""
     rng = np.random.default_rng(seed)
 
     # a random angle for each point, then its position on the circle
