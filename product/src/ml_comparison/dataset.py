@@ -25,6 +25,10 @@ class Dataset:
             raise ValueError(f"y must be 1-D, got shape {y.shape}")
         if len(X) != len(y):
             raise ValueError(f"X has {len(X)} rows but y has {len(y)} labels")
+        for row, label in enumerate(y):
+            # a blank label would become a class called '', which is almost always a mistake
+            if label is None or str(label).strip() == "":
+                raise ValueError(f"label {row} is blank")
 
         self.X = X
         self.y = y

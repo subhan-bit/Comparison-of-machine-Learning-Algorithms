@@ -48,6 +48,13 @@ def test_values_that_are_not_numbers_give_a_clear_error_not_a_raw_type_error():
         Dataset([{}], [0])  # a dict where a row should be
 
 
+def test_blank_labels_are_rejected():
+    for blank in ("", "   ", None):
+        with pytest.raises(ValueError, match="label 1 is blank"):
+            Dataset([[1], [2]], ["red", blank])
+    assert Dataset([[1]], [0]).y.tolist() == [0]  # the number 0 is a fine label
+
+
 def test_positive_label_must_be_one_of_the_labels():
     with pytest.raises(ValueError):
         Dataset([[1], [2]], ["ham", "spam"], positive_label="fraud")

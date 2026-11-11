@@ -57,6 +57,9 @@ def load_csv(path, label_column, drop_columns=(), column_names=None, whitespace=
             if any(value is None for name, value in row.items() if name):
                 raise ValueError(f"{path} line {line}: row has fewer fields than the header")
 
+            if not row[label_column].strip():
+                raise ValueError(f"{path} line {line}: the label in column {label_column!r} is blank")
+
             numbers = []
             for name in features:
                 text = row[name]
