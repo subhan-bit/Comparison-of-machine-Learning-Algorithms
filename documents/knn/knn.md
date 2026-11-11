@@ -16,11 +16,15 @@ examples. A small distance means they are similar.
   |a1-b1| + |a2-b2| + ...
 
 ## Example
-Training dots: A (1,1) red, B (2,1) red, C (4,4) blue, D (5,4) blue, E (4,5) blue.
+Training dots: A (1,1) red, B (2,1) red, C (4,4) blue, D (5,4) blue, E (4,6) blue.
 New dot Q = (2,2). Closest to farthest: B, A, C, D, E.
 - k=1: B is red, so Q is red.
 - k=3: red, red, blue, so Q is red.
 - k=5: 2 red, 3 blue, so Q is blue.
+
+If two or more points are exactly equally far for the k-th place, they all
+vote, so there can be more than k votes. (E used to be at (4,5), as far from Q
+as D, which hid exactly this problem. See knn_tie_breaking.md.)
 
 ## Choosing k
 - k too small: one odd example can fool the vote.
