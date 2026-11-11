@@ -82,6 +82,29 @@ def test_error_says_the_real_line_and_column(tmp_path):
         load_text(tmp_path, 'x1,x2,colour\n1,1,"two\nlines"\n1,abc,blue\n')
 
 
+def test_a_blank_label_is_rejected_with_its_line_number(tmp_path):
+    # the empty label would otherwise become a class called ''
+    with pytest.raises(ValueError, match="line 3: the label in column 'colour' is blank"):
+        load_text(tmp_path, "x1,x2,colour\n1,1,red\n4,4,\n")
+    with pytest.raises(ValueError, match="line 2: the label in column 'colour' is blank"):
+        load_text(tmp_path, "x1,x2,colour\n1,1,   \n")
+
+
+def test_repeated_column_names_are_rejected(tmp_path):
+    # without a check, the second x1 would silently replace the first one
+    with pytest.raises(ValueError, match="repeated column names.*'x1'"):
+        load_text(tmp_path, "x1,x1,colour\n1,2,red\n")
+    # the same goes for the names given for a file that has no header row
+    file = make_csv(tmp_path, "1,2,red\n")
+    with pytest.raises(ValueError, match="repeated column names.*'x1'"):
+        load_csv(file, "colour", column_names=["x1", "x1", "colour"])
+
+
+def test_several_blank_column_names_are_not_repeats(tmp_path):
+    data = load_text(tmp_path, "x1,colour,,\n1,red,,\n")
+    assert data.X.tolist() == [[1.0]]
+
+
 def test_unknown_column_names_are_rejected(tmp_path):
     file = make_csv(tmp_path, "id,x1,colour\n1,1,red\n")
     with pytest.raises(KeyError):

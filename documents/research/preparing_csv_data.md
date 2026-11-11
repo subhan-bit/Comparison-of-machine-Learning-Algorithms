@@ -23,6 +23,16 @@ and stops with a clear error when something is wrong.
   None and puts extra cells under the key None [1]. Both are errors.
 - NaN and infinity. float("nan") and float("inf") are accepted by Python,
   but they break distances and splits, so they are rejected.
+- Repeated column names. csv.DictReader keeps only the last of two columns
+  with the same name [1], so a feature would silently disappear. load_csv
+  rejects a header with repeated names and lists them. Several blank names
+  are not a repeat, because the Breast Cancer header ends with extra commas.
+- Values that are not numbers. Text, a dict, an object or a set cannot be a
+  feature. Dataset stops with "X must be a rectangular table of numbers"
+  instead of a raw Python error.
+- Blank labels. An empty label cell would quietly become a class called '',
+  adding a class that distorts the class list and the ROC code. Dataset and
+  load_csv reject it, and load_csv gives the line number.
 - Text labels. Labels like "M" and "B" are given numbers (sorted, so B = 0,
   M = 1) so every algorithm uses the same order.
 
@@ -38,7 +48,9 @@ load_csv(file, "diagnosis", drop_columns=["id"]) gives:
 - y = ["M", "B"], classes = ["B", "M"], codes = [1, 0]
 
 If the second row were "842517,B,abc,14.36" the error would say
-"line 3, column 'radius_mean': 'abc' is not a number".
+"line 3, column 'radius_mean': 'abc' is not a number". If its label were
+empty ("842517,,13.54,14.36") it would say
+"line 3: the label in column 'diagnosis' is blank".
 
 ## Why it matters for my project
 - Bad data gives wrong results with no warning, so it is better to stop
@@ -55,6 +67,9 @@ If the second row were "842517,B,abc,14.36" the error would say
   "own house" that need encoding (for example one-hot).
 - (Done) Checked the real files once downloaded. What each one looks like,
   and how to load it, is in data_sets.md.
+- (Done) After adding the checks for repeated names, non-numbers and blank
+  labels, all six real data sets still load. A stricter check can reject a
+  file that used to work, so I load them again after every change like this.
 
 ## Sources
 [1] Python documentation: csv (https://docs.python.org/3/library/csv.html)
