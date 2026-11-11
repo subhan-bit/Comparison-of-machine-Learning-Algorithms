@@ -14,8 +14,8 @@ class Classifier(ABC):
     so each algorithm doesn't have to repeat them.
     """
 
-    classes_ = None      # the labels, in the same order as the score columns
-    n_features_ = None   # how many columns the training data had
+    classes_: np.ndarray | None = None   # the labels, in the same order as the score columns
+    n_features_: int | None = None       # how many columns the training data had
 
     def train(self, data: Dataset) -> None:
         # Forget anything from an earlier train() call first
@@ -38,6 +38,9 @@ class Classifier(ABC):
             raise ValueError(f"X must be 2-D, got shape {X.shape}")
         if X.shape[1] != self.n_features_:
             raise ValueError(f"X has {X.shape[1]} features but the model was trained on {self.n_features_}")
+        # Dataset checks this for the training data, so check it for the dots to classify too
+        if not np.isfinite(X).all():
+            raise ValueError("X must contain only finite numbers (no NaN or inf)")
 
         scores = np.asarray(self._predict_scores(X))
         expected = (len(X), len(self.classes_))
@@ -48,6 +51,7 @@ class Classifier(ABC):
     def predict(self, X: np.ndarray) -> np.ndarray:
         """For each dot, pick the class with the highest score."""
         best_column = self.predict_scores(X).argmax(axis=1)
+        assert self.classes_ is not None  # predict_scores has already checked that train() was called
         return self.classes_[best_column]
 
     @abstractmethod

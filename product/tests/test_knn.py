@@ -113,6 +113,10 @@ def test_without_tied_distances_the_votes_match_a_plain_full_sort():
         assert model.predict_scores(queries) == pytest.approx(expected / k)
 
 
+def test_the_default_k_is_one():
+    assert KNN().k == 1
+
+
 def test_k_must_be_a_whole_number():
     for bad in (2.5, True, "3"):
         with pytest.raises(TypeError, match="k must be a whole number"):
@@ -133,6 +137,45 @@ def test_nearest_reduce_k_and_weighted_all_pick_red():
         model = KNN(k=4, tie_break=strategy)
         model.train(DOTS)
         assert model.predict(Q).tolist() == ["red"], strategy
+
+
+def test_the_three_strategies_can_give_three_different_answers():
+    # Q is (1, 4) and k is 6. No two distances are equal. The six nearest dots, closest first:
+    # (3,2) green, (6,4) blue, (5,0) red, (5,9) red, (7,7) blue, (11,1) green.
+    # That is 2 votes each, a three-way tie.
+    X = [[11, 1], [5, 9], [11, 0], [3, 2], [7, 7], [6, 4], [5, 0], [12, 7]]
+    y = ["green", "red", "blue", "green", "blue", "blue", "red", "blue"]
+    expected = {
+        "nearest": "green",   # the closest dot is green
+        "reduce_k": "red",    # k=5 still ties (blue and red), k=4 gives red 2 votes and the others 1
+        "weighted": "blue",   # weights 1, 0.71, 0.63, 0.53, 0.49, 0 give blue 1.21, red 1.16, green 1.00
+    }
+    for strategy, answer in expected.items():
+        model = KNN(k=6, tie_break=strategy)
+        model.train(Dataset(X, y))
+        assert model.predict([[1, 4]]).tolist() == [answer], strategy
+
+
+def test_reduce_k_drops_one_neighbour_at_a_time_and_stops_at_the_first_winner():
+    # Q is at 0 on a line, so the neighbours are 1, 2, 3, 4 and 5 away: blue, red, green, red, blue.
+    # k=5 is a tie: blue and red have 2 votes each.
+    # nearest:  the closest of the two tied classes, blue.
+    # reduce_k: k=4 is blue, red, green, red, so red has 2 votes and wins, and it stops there.
+    #           (if it skipped k=4, then k=3 and k=2 would tie again and k=1 would give blue)
+    data = Dataset([[1], [2], [3], [4], [5]], ["blue", "red", "green", "red", "blue"])
+    for strategy, answer in [("nearest", "blue"), ("reduce_k", "red")]:
+        model = KNN(k=5, tie_break=strategy)
+        model.train(data)
+        assert model.predict([[0]]).tolist() == [answer], strategy
+
+
+def test_reduce_k_and_weighted_fall_back_to_the_row_order_as_a_last_resort():
+    # three dots exactly as far from Q as each other, one class each: even k=1 is a three-way tie
+    data = Dataset([[0, 1], [1, 0], [0, -1]], ["c", "a", "b"])
+    for strategy in ["reduce_k", "weighted"]:
+        model = KNN(k=1, tie_break=strategy)
+        model.train(data)
+        assert model.predict([[0, 0]]).tolist() == ["c"], strategy  # the first row wins
 
 
 def test_random_is_repeatable_with_a_seed_and_can_pick_either():
