@@ -40,12 +40,15 @@ def split_impurity(left, right, measure):
 def best_split(X, codes, measure):
     """Try every feature and threshold, and return (feature, threshold) of the purest split.
 
-    Returns None if no split is possible, because every row has the same values.
+    Returns None if no split is possible (every row has the same values) or if no
+    split makes the groups purer than the rows are now.
     """
     X = np.asarray(X, dtype=float)
     codes = np.asarray(codes)
     best = None
-    best_score = np.inf
+    # a split must beat the impurity before splitting. The tiny gap stops rounding
+    # errors from counting a tie as an improvement.
+    best_score = measure(codes) - 1e-12
     for feature in range(X.shape[1]):
         values = np.unique(X[:, feature])  # each value once, sorted
         # try a threshold halfway between each pair of neighbouring values

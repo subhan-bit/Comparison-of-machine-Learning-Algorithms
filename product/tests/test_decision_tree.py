@@ -67,6 +67,20 @@ def test_no_split_when_all_rows_are_the_same():
     assert best_split([[1, 2], [1, 2]], [0, 1], gini) is None
 
 
+def test_no_split_when_no_split_lowers_the_impurity():
+    # one odd label among five: every split leaves the misclassification error at 0.2
+    X = [[1], [2], [3], [4], [5]]
+    codes = [0, 0, 1, 0, 0]
+    assert best_split(X, codes, misclassification) is None
+
+    model = DecisionTree(measure="misclassification")
+    model.train(Dataset(X, ["a", "a", "b", "a", "a"]))
+    assert model.count_leaves() == 1
+
+    # gini can see that isolating the odd label helps, so it still splits
+    assert best_split(X, codes, gini) is not None
+
+
 def accuracy(model, data):
     return np.mean(model.predict(data.X) == data.y)
 
