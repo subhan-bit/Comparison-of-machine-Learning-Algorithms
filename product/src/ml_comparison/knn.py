@@ -11,11 +11,16 @@ DISTANCES = {"euclidean": euclidean, "manhattan": manhattan}
 TIE_BREAKS = ["random", "nearest", "reduce_k", "weighted"]
 
 
+def same(a, b):
+    """True where a and b are equal apart from rounding errors (0.1 + 0.2 and 0.3 are)."""
+    return np.isclose(a, b, rtol=1e-9, atol=1e-12)
+
+
 def has_tie(scores):
     """For each row of scores, True if two or more classes share the top score."""
     scores = np.asarray(scores)
     top = scores.max(axis=1, keepdims=True)
-    return (scores == top).sum(axis=1) > 1
+    return same(scores, top).sum(axis=1) > 1
 
 
 class KNN(Classifier):
@@ -36,8 +41,9 @@ class KNN(Classifier):
         # k-NN does no learning up front: it just remembers the training data
         if self.k > len(data):
             raise ValueError(f"k is {self.k} but there are only {len(data)} training points")
-        self.train_X = data.X
-        self.train_codes = data.codes  # each label as a number: its position in the classes
+        # keep copies, so changing the original data later cannot change the model
+        self.train_X = data.X.copy()
+        self.train_codes = data.codes.copy()  # each label as a number: its position in the classes
         self.n_classes = len(data.classes)
 
     def _neighbours(self, point):
@@ -63,7 +69,7 @@ class KNN(Classifier):
         winners = []
         for row, point in enumerate(X):
             # the classes that share the highest score
-            tied = np.flatnonzero(scores[row] == scores[row].max())
+            tied = np.flatnonzero(same(scores[row], scores[row].max()))
             if len(tied) == 1:
                 winners.append(tied[0])
             else:
@@ -89,13 +95,13 @@ class KNN(Classifier):
         if self.tie_break == "weighted":
             # Dudani's rule: the nearest neighbour has weight 1, the k-th has weight 0
             d_first, d_last = distances[0], distances[-1]
-            if d_last == d_first:
+            if same(d_last, d_first):
                 weights = np.ones(len(distances))
             else:
                 weights = (d_last - distances) / (d_last - d_first)
             # add up the weights for each tied class and keep the biggest
             totals = [weights[codes == c].sum() for c in tied]
-            best = [c for c, total in zip(tied, totals) if total == max(totals)]
+            best = [c for c, total in zip(tied, totals) if same(total, max(totals))]
             if len(best) == 1:
                 return best[0]
             tied = best  # the weights tie too, so fall back to the nearest label

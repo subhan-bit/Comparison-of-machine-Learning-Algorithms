@@ -126,6 +126,26 @@ def test_has_tie_finds_rows_where_the_top_score_is_shared():
     assert has_tie([[0.4, 0.4, 0.2]]).tolist() == [True]
 
 
+def test_has_tie_ignores_tiny_rounding_differences():
+    # 0.1 + 0.2 is 0.30000000000000004, so == says these differ, but they are the same score
+    assert has_tie([[0.1 + 0.2, 0.3]]).tolist() == [True]
+    assert has_tie([[0.3, 0.30001]]).tolist() == [False]  # a real difference still counts
+
+
+def test_changing_the_original_data_does_not_change_a_trained_model():
+    data = Dataset([[1, 1], [2, 1], [4, 4], [5, 4], [4, 5]],
+                   ["red", "red", "blue", "blue", "blue"])
+    model = KNN(k=1)
+    model.train(data)
+    assert model.predict(Q).tolist() == ["red"]
+
+    data.codes[:] = 1 - data.codes  # swap red and blue in the original data
+    assert model.predict(Q).tolist() == ["red"]  # the model kept its own copy
+
+    data.X[:] = 0  # and wipe the original dots (all the same distance now)
+    assert model.predict(Q).tolist() == ["red"]
+
+
 def test_has_tie_on_the_example_from_the_notes():
     # k=4 gives 2 red and 2 blue votes for Q, but k=3 does not tie
     for k, expected in [(3, False), (4, True)]:
