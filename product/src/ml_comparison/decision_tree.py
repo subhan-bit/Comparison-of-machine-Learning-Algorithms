@@ -124,6 +124,13 @@ def check_whole_number(name, value):
 
 
 class DecisionTree(Classifier):
+    """A decision tree that follows the Classifier interface.
+
+    measure is "gini", "entropy" or "misclassification". max_depth (None means no
+    limit) and min_samples_split stop the tree growing. The scores are the smoothed
+    class shares in the leaf. prune() cuts the tree back using a validation set.
+    """
+
     def __init__(self, measure="gini", max_depth=None, min_samples_split=2):
         if measure not in MEASURES:
             raise ValueError(f"measure must be one of {list(MEASURES)}, not {measure!r}")
