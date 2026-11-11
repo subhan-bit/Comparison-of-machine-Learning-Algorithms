@@ -40,6 +40,14 @@ def test_bad_data_is_rejected():
         Dataset([[1], [2]], [["a"], ["b"]])   # labels inside lists
 
 
+def test_values_that_are_not_numbers_give_a_clear_error_not_a_raw_type_error():
+    for bad in ({}, {"a": 1}, object(), 1j, {1, 2}):
+        with pytest.raises(ValueError, match="rectangular table of numbers"):
+            Dataset([[bad]], [0])
+    with pytest.raises(ValueError, match="rectangular table of numbers"):
+        Dataset([{}], [0])  # a dict where a row should be
+
+
 def test_positive_label_must_be_one_of_the_labels():
     with pytest.raises(ValueError):
         Dataset([[1], [2]], ["ham", "spam"], positive_label="fraud")

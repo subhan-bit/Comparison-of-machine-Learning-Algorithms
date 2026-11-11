@@ -8,7 +8,7 @@ class Dataset:
         # X must be a table of numbers. Uneven rows or text make this fail.
         try:
             X = np.array(X, dtype=float)
-        except ValueError:
+        except (ValueError, TypeError):  # text or uneven rows, or something that is not a number
             raise ValueError("X must be a rectangular table of numbers")
 
         # Dataset([], []) gives a flat empty array, so make it 0 rows by 0 columns
