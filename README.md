@@ -44,7 +44,16 @@ diary.md     weekly progress log
 ```
 
 ## Getting started
-Requires Python 3.11 or newer. From the `product` folder:
+Requires Python 3.11 or newer. First check which version `python3` is:
+```
+python3 --version
+```
+If it says 3.11 or newer, use `python3` below. If it is older (the Python that
+comes with macOS is 3.9, and some Linux systems have 3.10), install a newer
+Python and use its name in the first command instead, for example
+`python3.12 -m venv .venv`. With an older Python the install fails with a
+confusing "No matching distribution found for numpy" error. The other commands
+stay the same. Then, from the `product` folder:
 ```
 python3 -m venv .venv
 source .venv/bin/activate
@@ -52,6 +61,7 @@ pip install -r requirements-dev.txt
 pip install -e .
 pytest
 ```
+Inside the environment, `python --version` should show the same version.
 
 ## Data
 Data sets are not stored in this repository. Download them into a `data/`
