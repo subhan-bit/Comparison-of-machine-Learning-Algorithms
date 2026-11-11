@@ -214,6 +214,21 @@ def test_scores_of_a_full_tree_are_not_only_0_and_1():
     assert scores.min() > 0 and scores.max() < 1  # no leaf is completely sure
 
 
+def test_a_row_exactly_on_the_threshold_goes_left():
+    model = DecisionTree()
+    model.train(Dataset([[0.0], [1.0]], ["a", "b"]))  # the question is "x <= 0.5", and yes goes left
+    assert model.predict([[0.5]]).tolist() == ["a"]
+
+
+def test_two_values_one_float_step_apart_are_still_told_apart():
+    low = np.nextafter(1.0, 2)
+    high = np.nextafter(low, 2)  # the very next float after low
+    # the midpoint of the two rounds up to high, so the threshold has to be low itself
+    model = DecisionTree(max_depth=1)
+    model.train(Dataset([[low], [high]], ["a", "b"]))
+    assert model.predict([[low], [high]]).tolist() == ["a", "b"]
+
+
 def test_max_depth_0_just_predicts_the_smoothed_shares_of_the_whole_training_set():
     data = Dataset([[1], [2], [3], [4]], ["a", "a", "a", "b"])
     model = DecisionTree(max_depth=0)
@@ -226,6 +241,24 @@ def test_max_depth_1_makes_one_split():
     model = DecisionTree(max_depth=1)
     model.train(data)
     assert model.root.left.is_leaf() and model.root.right.is_leaf()
+
+
+def subtree_depth(node):
+    return 0 if node.is_leaf() else 1 + max(subtree_depth(node.left), subtree_depth(node.right))
+
+
+def test_the_tree_grows_to_max_depth_on_both_sides_and_no_further():
+    # random labels, so there is always something left to split
+    rng = np.random.default_rng(0)
+    data = Dataset(rng.normal(size=(200, 2)), rng.integers(0, 2, size=200))
+    for max_depth in [1, 2, 3, 4]:
+        model = DecisionTree(max_depth=max_depth)
+        model.train(data)
+        # each side of the root must have exactly max_depth - 1 more levels under it:
+        # a side that counted its depth wrongly would stop early or go too deep
+        assert subtree_depth(model.root.left) == max_depth - 1, max_depth
+        assert subtree_depth(model.root.right) == max_depth - 1, max_depth
+        assert model.count_leaves() <= 2 ** max_depth
 
 
 def test_min_samples_split_stops_small_nodes_from_splitting():
@@ -308,6 +341,31 @@ def test_pruning_keeps_a_split_that_no_validation_row_reaches():
     # the validation rows are all on the left, so nothing shows the right split is bad
     model.prune(Dataset([[1], [2]], ["b", "b"]))
     assert model.count_leaves() == 3
+
+
+def test_pruning_adds_up_the_mistakes_of_both_children():
+    # The tree is: x <= 2.5? yes: (x <= 0.5? yes: b, no: a), no: b
+    train = Dataset([[0], [1], [7], [3], [2]], ["b", "a", "b", "b", "a"])
+    model = DecisionTree()
+    model.train(train)
+    assert model.count_leaves() == 3
+
+    # All three validation rows are on the yes side of the root: x=0 is a, and x=2 (twice) is b.
+    # The "x <= 0.5" node as one leaf says a: 2 wrong. Below it, x=0 gets b (wrong) and both
+    # x=2 get a (wrong), so 1 + 2 = 3 wrong. That is worse than 2, so it is cut.
+    # The root as one leaf says b: 1 wrong. Below it, 2 wrong (the node just cut) + 0 (no row
+    # reaches the right leaf) = 2 wrong. That is worse than 1, so the root is cut too.
+    model.prune(Dataset([[0], [2], [2]], ["a", "b", "b"]))
+    assert model.count_leaves() == 1
+
+
+def test_pruning_sends_a_validation_row_on_the_threshold_to_the_left():
+    model = DecisionTree()
+    model.train(Dataset([[0], [1]], ["a", "b"]))  # the question is "x <= 0.5"
+    # The row at 0.5 is b, but it goes left, where the leaf says a: 1 wrong. As one leaf the tree
+    # says a as well: also 1 wrong. The split is no better, and a tie goes to the leaf.
+    model.prune(Dataset([[0.5]], ["b"]))
+    assert model.count_leaves() == 1
 
 
 def test_pruning_a_noisy_tree_makes_it_smaller_and_no_worse():
