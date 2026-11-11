@@ -35,7 +35,7 @@ class KNN(Classifier):
         self.k = k
         self.distance = DISTANCES[distance]
         self.tie_break = tie_break
-        self.rng = np.random.default_rng(seed)  # only used by the "random" strategy
+        self.seed = seed  # only used by the "random" strategy
 
     def _train(self, data: Dataset) -> None:
         # k-NN does no learning up front: it just remembers the training data
@@ -66,6 +66,9 @@ class KNN(Classifier):
         """Like the base class, but a tie for the top score is broken by the chosen strategy."""
         scores = self.predict_scores(X)  # also checks the input
         X = np.asarray(X, dtype=float)
+        # A new generator for every call, so with a seed the same data always gives the same
+        # answers. (One generator kept for the whole model would give a different answer each time.)
+        rng = np.random.default_rng(self.seed)
         winners = []
         for row, point in enumerate(X):
             # the classes that share the highest score
@@ -73,16 +76,16 @@ class KNN(Classifier):
             if len(tied) == 1:
                 winners.append(tied[0])
             else:
-                winners.append(self._break_tie(point, tied))
+                winners.append(self._break_tie(point, tied, rng))
         return self.classes_[winners]
 
-    def _break_tie(self, point, tied):
-        """Pick one class from the tied ones, using the chosen strategy."""
+    def _break_tie(self, point, tied, rng):
+        """Pick one class from the tied ones, using the chosen strategy. rng is for "random"."""
         nearest, distances = self._neighbours(point)
         codes = self.train_codes[nearest]  # the neighbours' classes, closest first
 
         if self.tie_break == "random":
-            return self.rng.choice(tied)
+            return rng.choice(tied)
 
         if self.tie_break == "reduce_k":
             # drop the farthest neighbour and vote again, until one class wins

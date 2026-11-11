@@ -97,6 +97,25 @@ def test_random_is_repeatable_with_a_seed_and_can_pick_either():
     assert set(answers) == {"red", "blue"}
 
 
+def test_random_gives_the_same_answers_every_time_predict_is_called():
+    # the same tied point, asked for 12 times: a seeded model must always answer the same
+    model = KNN(k=4, tie_break="random", seed=5)
+    model.train(DOTS)
+    answers = [model.predict(Q)[0] for _ in range(12)]
+    assert len(set(answers)) == 1
+
+    # and the same batch of tied points gives the same list of answers each time
+    batch = Q * 8
+    assert model.predict(batch).tolist() == model.predict(batch).tolist()
+
+
+def test_random_without_a_seed_can_differ_between_calls():
+    model = KNN(k=4, tie_break="random")
+    model.train(DOTS)
+    answers = {model.predict(Q)[0] for _ in range(60)}
+    assert answers == {"red", "blue"}
+
+
 def test_weighted_falls_back_to_nearest_when_the_weights_tie():
     # two points exactly as far from Q: their weights are equal too
     data = Dataset([[0, 1], [0, -1]], ["red", "blue"])
