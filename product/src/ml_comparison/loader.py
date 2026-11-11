@@ -29,6 +29,14 @@ def load_csv(path, label_column, drop_columns=(), column_names=None, whitespace=
         headers = reader.fieldnames
         if not headers:
             raise ValueError(f"{path} has no header row")
+
+        # Two columns with the same name would silently become one. (Several blank
+        # names are fine: some files end the header row with extra commas.)
+        named = [h for h in headers if h]
+        repeated = sorted({h for h in named if named.count(h) > 1})
+        if repeated:
+            raise ValueError(f"{path} has repeated column names: {repeated}")
+
         for name in [label_column, *drop_columns]:
             if name not in headers:
                 raise KeyError(name)
