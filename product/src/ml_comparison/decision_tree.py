@@ -78,14 +78,20 @@ def best_split(X, codes, measure):
         # left_counts[i] = how many rows of each class are among the first i + 1 rows
         left_counts = np.cumsum(one_hot[order], axis=0)
 
+        lower, upper = values[:-1], values[1:]
+        with np.errstate(over="ignore"):  # a huge gap overflows to inf, and is skipped below
+            midpoints = lower + (upper - lower) / 2  # (lower + upper) / 2 can overflow
+
         # a threshold only makes sense between two different values
-        between_different = values[:-1] < values[1:]
-        if not between_different.any():
+        usable = lower < upper
+        if not usable.any():
             continue
-        n_left = np.arange(1, n)[between_different]
-        left = left_counts[:-1][between_different]
+        n_left = np.arange(1, n)[usable]
+        left = left_counts[:-1][usable]
         right = left_counts[-1] - left
-        thresholds = ((values[:-1] + values[1:]) / 2)[between_different]
+        # Two values one float step apart can have a midpoint that rounds up to the upper
+        # value, which would send every row left. Then the lower value itself separates them.
+        thresholds = np.where(midpoints < upper, midpoints, lower)[usable]
 
         # the impurity of every split on this feature at once, weighted by group size
         scores = (n_left * impurity_of(left / n_left[:, None])

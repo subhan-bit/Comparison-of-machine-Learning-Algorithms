@@ -69,6 +69,34 @@ def test_no_split_when_all_rows_are_the_same():
     assert best_split([[1, 2], [1, 2]], [0, 1], gini) is None
 
 
+def sides_of(split, X):
+    """How many rows go left and right for a (feature, threshold) split."""
+    feature, threshold = split
+    goes_left = np.asarray(X, dtype=float)[:, feature] <= threshold
+    return goes_left.sum(), (~goes_left).sum()
+
+
+def test_a_split_never_leaves_one_side_empty_for_values_one_float_step_apart():
+    # halfway between two neighbouring floats rounds to one of them, so a careless
+    # midpoint can send every row left and make train() repeat the same split forever
+    a = np.nextafter(1.0, 2)
+    b = np.nextafter(a, 2)
+    X = [[a], [b]]
+    split = best_split(X, [0, 1], gini)
+    assert sides_of(split, X) == (1, 1)  # still told apart, one row on each side
+
+    model = DecisionTree()
+    model.train(Dataset(X, [0, 1]))  # must finish
+    assert model.count_leaves() == 2
+
+
+def test_the_midpoint_of_very_large_values_does_not_overflow():
+    for X in ([[1e308], [1.7e308]], [[-1.7e308], [1.7e308]]):
+        split = best_split(X, [0, 1], gini)
+        assert np.isfinite(split[1])
+        assert sides_of(split, X) == (1, 1)
+
+
 def test_no_split_when_no_split_lowers_the_impurity():
     # one odd label among five: every split leaves the misclassification error at 0.2
     X = [[1], [2], [3], [4], [5]]
