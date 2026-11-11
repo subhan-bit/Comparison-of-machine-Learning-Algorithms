@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import pytest
 
@@ -67,6 +69,62 @@ def test_no_split_when_all_rows_are_the_same():
     assert best_split([[1, 2], [1, 2]], [0, 1], gini) is None
 
 
+def test_no_split_when_no_split_lowers_the_impurity():
+    # one odd label among five: every split leaves the misclassification error at 0.2
+    X = [[1], [2], [3], [4], [5]]
+    codes = [0, 0, 1, 0, 0]
+    assert best_split(X, codes, misclassification) is None
+
+    model = DecisionTree(measure="misclassification")
+    model.train(Dataset(X, ["a", "a", "b", "a", "a"]))
+    assert model.count_leaves() == 1
+
+    # gini can see that isolating the odd label helps, so it still splits
+    assert best_split(X, codes, gini) is not None
+
+
+def slow_best_split(X, codes, measure):
+    """The simple search the code used to do: rescan every row for every threshold."""
+    X = np.asarray(X, dtype=float)
+    codes = np.asarray(codes)
+    best = None
+    best_score = measure(codes)
+    for feature in range(X.shape[1]):
+        values = np.unique(X[:, feature])
+        for threshold in (values[:-1] + values[1:]) / 2:
+            goes_left = X[:, feature] <= threshold
+            score = split_impurity(codes[goes_left], codes[~goes_left], measure)
+            # scores within 1e-12 count as equal, so rounding cannot pick a winner
+            if score < best_score - 1e-12:
+                best = (feature, float(threshold))
+                best_score = score
+    return best
+
+
+def test_the_fast_search_finds_the_same_split_as_the_slow_one():
+    rng = np.random.default_rng(0)
+    for measure in [gini, entropy, misclassification]:
+        for n_classes in [2, 3]:
+            # whole numbers from 0 to 9, so values repeat
+            X = rng.integers(0, 10, size=(60, 3))
+            codes = rng.integers(0, n_classes, size=60)
+            assert best_split(X, codes, measure) == slow_best_split(X, codes, measure)
+
+
+def test_best_split_copes_with_many_rows():
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(20000, 5))
+    codes = (X[:, 3] > 0.5).astype(int)  # only feature 3 matters
+
+    start = time.perf_counter()
+    feature, threshold = best_split(X, codes, gini)
+    seconds = time.perf_counter() - start
+
+    assert feature == 3
+    assert threshold == pytest.approx(0.5, abs=0.01)
+    assert seconds < 3  # the slow search took about 10 seconds
+
+
 def accuracy(model, data):
     return np.mean(model.predict(data.X) == data.y)
 
@@ -86,20 +144,34 @@ def test_works_on_blobs_xor_and_circles_with_every_measure():
             assert accuracy(model, make(100, seed=2)) >= 0.85, (make.__name__, measure)
 
 
-def test_scores_are_the_class_shares_in_the_leaf():
+def test_scores_are_the_smoothed_class_shares_in_the_leaf():
     # rows 0-2 can't be told apart, so they end up in one leaf: 2 of class a, 1 of class b
+    # smoothed share = (count + 1) / (rows + number of classes)
     data = Dataset([[1], [1], [1], [5]], ["a", "a", "b", "b"])
     model = DecisionTree()
     model.train(data)
-    assert model.predict_scores([[1]])[0] == pytest.approx([2 / 3, 1 / 3])
+    assert model.predict_scores([[1]])[0] == pytest.approx([3 / 5, 2 / 5])
     assert model.predict([[1], [5]]).tolist() == ["a", "b"]
 
 
-def test_max_depth_0_just_predicts_the_shares_of_the_whole_training_set():
+def test_scores_of_a_full_tree_are_not_only_0_and_1():
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(500, 2))
+    y = np.zeros(500, dtype=int)
+    y[rng.choice(500, 10, replace=False)] = 1  # 2% positive
+    model = DecisionTree()
+    model.train(Dataset(X, y))
+
+    scores = model.predict_scores(rng.normal(size=(200, 2)))[:, 1]
+    assert len(np.unique(scores)) > 2  # leaves of different sizes give different scores
+    assert scores.min() > 0 and scores.max() < 1  # no leaf is completely sure
+
+
+def test_max_depth_0_just_predicts_the_smoothed_shares_of_the_whole_training_set():
     data = Dataset([[1], [2], [3], [4]], ["a", "a", "a", "b"])
     model = DecisionTree(max_depth=0)
     model.train(data)
-    assert model.predict_scores([[4]]).tolist() == [[0.75, 0.25]]
+    assert model.predict_scores([[4]])[0] == pytest.approx([4 / 6, 2 / 6])
 
 
 def test_max_depth_1_makes_one_split():
@@ -125,6 +197,15 @@ def test_bad_tree_settings_are_rejected():
         DecisionTree(min_samples_split=1)
 
 
+def test_depth_and_split_size_must_be_whole_numbers():
+    with pytest.raises(TypeError, match="whole number"):
+        DecisionTree(max_depth=2.5)
+    with pytest.raises(TypeError, match="whole number"):
+        DecisionTree(max_depth="a")
+    with pytest.raises(TypeError, match="whole number"):
+        DecisionTree(min_samples_split=2.5)
+
+
 def test_pruning_removes_a_split_that_only_fits_noise():
     # the "b" at x=3 is noise: the full tree makes extra splits just to fit it
     train = Dataset([[1], [2], [3], [4], [5]], ["a", "a", "b", "a", "a"])
@@ -143,6 +224,40 @@ def test_pruning_keeps_a_split_that_helps():
     model.train(Dataset([[1], [2], [3], [4]], ["a", "a", "b", "b"]))
     model.prune(Dataset([[1], [4]], ["a", "b"]))
     assert model.count_leaves() == 2
+
+
+def test_a_very_deep_tree_can_be_trained_counted_and_pruned():
+    # alternating labels on one feature need a split between every pair of rows,
+    # so the tree is far deeper than Python's recursion limit
+    X = [[i] for i in range(2000)]
+    labels = [i % 2 for i in range(2000)]
+    model = DecisionTree()
+    model.train(Dataset(X, labels))
+    assert model.count_leaves() == 2000
+    assert accuracy(model, Dataset(X, labels)) == 1
+
+    # pruning against the same rows keeps every split, because each one is right
+    model.prune(Dataset(X, labels))
+    assert model.count_leaves() == 2000
+
+
+def test_pruning_rejects_an_empty_validation_set():
+    model = DecisionTree()
+    model.train(Dataset([[1], [2]], ["a", "b"]))
+    with pytest.raises(ValueError, match="empty"):
+        model.prune(Dataset([], []))
+
+
+def test_pruning_keeps_a_split_that_no_validation_row_reaches():
+    # left of 6 is "b"; right of 6 splits again at 12.5 (3 leaves in all)
+    train = Dataset([[1], [2], [10], [11], [12], [13]], ["b", "b", "a", "a", "a", "b"])
+    model = DecisionTree()
+    model.train(train)
+    assert model.count_leaves() == 3
+
+    # the validation rows are all on the left, so nothing shows the right split is bad
+    model.prune(Dataset([[1], [2]], ["b", "b"]))
+    assert model.count_leaves() == 3
 
 
 def test_pruning_a_noisy_tree_makes_it_smaller_and_no_worse():
