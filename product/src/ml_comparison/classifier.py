@@ -14,8 +14,8 @@ class Classifier(ABC):
     so each algorithm doesn't have to repeat them.
     """
 
-    classes_ = None      # the labels, in the same order as the score columns
-    n_features_ = None   # how many columns the training data had
+    classes_: np.ndarray | None = None   # the labels, in the same order as the score columns
+    n_features_: int | None = None       # how many columns the training data had
 
     def train(self, data: Dataset) -> None:
         # Forget anything from an earlier train() call first
@@ -51,6 +51,7 @@ class Classifier(ABC):
     def predict(self, X: np.ndarray) -> np.ndarray:
         """For each dot, pick the class with the highest score."""
         best_column = self.predict_scores(X).argmax(axis=1)
+        assert self.classes_ is not None  # predict_scores has already checked that train() was called
         return self.classes_[best_column]
 
     @abstractmethod

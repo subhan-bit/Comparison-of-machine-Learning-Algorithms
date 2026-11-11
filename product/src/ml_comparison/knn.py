@@ -87,6 +87,7 @@ class KNN(Classifier):
                 winners.append(tied[0])
             else:
                 winners.append(self._break_tie(point, tied, rng))
+        assert self.classes_ is not None  # predict_scores has already checked that train() was called
         return self.classes_[winners]
 
     def _break_tie(self, point, tied, rng):
