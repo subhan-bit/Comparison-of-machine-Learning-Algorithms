@@ -1,5 +1,33 @@
 # Diary
 
+## Week 7
+- Received an audit of the repository (3 November) that listed 19 problems: 10 older ones that were still open and 9 new ones. Its method section says it used AI reviewers (see AI.md). I split the problems into four groups and started with the decision tree, because the evaluation framework and the ROC curves will depend on it (issue #9, branch feature/tree-fixes).
+- Fixed the decision tree with Claude Code's help (see AI.md), writing a failing test first for each change, in seven small commits:
+  - Settings: max_depth and min_samples_split must be whole numbers, with a clear error. Ruff said to use TypeError for a wrong type, which also removed the raw TypeError the audit found.
+  - Pruning: an empty validation set is now an error, and a split that no validation row reaches is kept. Before, such a split was always cut, because it got 0 wrong either way and a tie goes to the leaf.
+  - Splitting: the tree now splits only when the impurity drops. Before, misclassification error on the labels 0, 0, 1, 0, 0 made 4 leaves although no split helped.
+  - Scores: leaves now give smoothed shares, (count + 1) / (rows + classes). Before, a full tree gave only 0 and 1, which would make ROC curves useless. It never changes which class wins, so the predictions are the same.
+  - Speed: the threshold search sorts each feature once and scores all thresholds from running class counts. A full tree on 2,000 rows with 10 features went from about 6 seconds to 0.09 seconds, so the fraud data may not need a subsample for the tree.
+  - Recursion: building, counting and pruning use a list of nodes still to visit instead of recursion, so 2,000 alternating rows no longer give a RecursionError.
+  - Notes: updated decision_trees.md and added a docstring.
+- What I learnt:
+  - The tree was right on small data and the problems only showed up at scale. The artificial data sets I tested on were too small to show slow search, deep trees or all-0-or-1 scores. Next time I will test a new algorithm on one large or awkward case as well.
+  - Two splits that are equal in theory can differ in the 16th decimal place, and the old code then picked the later one by accident. I made scores within 1e-12 count as equal and kept the first, as my notes say, and checked the fast search against the slow one on 900 random cases.
+  - I did the speed fix before the recursion fix, because a deep-tree test took too long to run with the slow search. Fixing things in the order that keeps the tests fast saved time.
+- Effect on my results: one number in the report changes (blobs with misclassification error now has 4 leaves, not 5; the accuracy is still 100%). The pruning result (85 leaves down to 2, 81.0% up to 99.5%) and the other table values are the same. k-NN and the tie counts are not affected.
+- Behind plan: the audit fixes took the time, so the evaluation framework has not started and the two early reports are still to be written.
+- Next: the other audit groups (k-NN, the tie-count script and its uninformative fraud row, set-up problems), then the early reports and the evaluation framework.
+
+## Week 6
+- Decision trees (issue #7) merged into main on GitLab and mirrored to GitHub.
+- Counted how often the k-NN vote ends in a tie on each data set (issue #8), with Claude Code's help (see AI.md):
+  - Added has_tie, which finds the rows where two or more classes share the top score, with tests that use the k=4 tie from my notes.
+  - Wrote scripts/count_ties.py: a random 70/30 split (seed 0), features standardised on the training rows only, then k = 1 to 10. The fraud data uses a 3,000-row subsample because brute-force k-NN is too slow on 284,807 rows.
+  - Results are in documents/knn/tie_counts.md. With two classes and an odd k there are never ties, as expected. With an even k, German Credit ties the most: 38.7% of test points at k=2, still 8.7% at k=10. Spambase is next (12.2% at k=2). Iris and the fraud subsample had no ties.
+- This changes how I will test RQ1: the tie-breaking strategy can only matter at an even k, so the comparison should focus on German Credit and Spambase at k=2 and k=4.
+- The counts come from one random split, so I will repeat them with cross-validation once it is built.
+- Next: the two early reports (k-NN, decision trees), then the evaluation framework (hold-out split, stratified cross-validation, confusion matrix, ROC and AUC, normalisation).
+
 ## Week 5
 - Checked progress against the plan: about two weeks behind. Decision trees (Weeks 3 to 4) had not been started, and the two early reports are due this week.
 - Built decision trees (issue #7), with Claude Code's help (see AI.md), writing the tests first for each step:
@@ -9,6 +37,8 @@
   - Reduced-error pruning, which turns a node into a leaf if that is no worse on a validation set. On blobs with 15% of the labels flipped, pruning made the tree smaller and its test accuracy no worse.
 - Found an example for RQ2 (Hastie et al.): two splits that misclassification error scores the same (0.25), while Gini prefers the one that makes a pure group (0.333 against 0.375).
 - Known limitation: the threshold search is slow on large data, so the fraud data set will need a subsample.
+- Had the code reviewed (see AI.md). It found that prune() crashed with an unclear error when the validation set had a label the tree never saw in training, or the wrong number of columns. Fixed both, with a test for each, and corrected a comment that said the XOR points were spread evenly when they are random.
+- Feedback from my supervisor on the project plan: the abstract needs more motivation, and I should build a basic GUI in Term 1 so there is a demo. I will build the GUI at the end of Term 1, after the other Term 1 work.
 - Next: write the two early reports (k-NN tie-breaking, decision trees), count ties on each data set (RQ1), then the evaluation framework (Weeks 6 to 7).
 
 ## Week 4
