@@ -125,6 +125,15 @@ def test_bad_tree_settings_are_rejected():
         DecisionTree(min_samples_split=1)
 
 
+def test_depth_and_split_size_must_be_whole_numbers():
+    with pytest.raises(TypeError, match="whole number"):
+        DecisionTree(max_depth=2.5)
+    with pytest.raises(TypeError, match="whole number"):
+        DecisionTree(max_depth="a")
+    with pytest.raises(TypeError, match="whole number"):
+        DecisionTree(min_samples_split=2.5)
+
+
 def test_pruning_removes_a_split_that_only_fits_noise():
     # the "b" at x=3 is noise: the full tree makes extra splits just to fit it
     train = Dataset([[1], [2], [3], [4], [5]], ["a", "a", "b", "a", "a"])

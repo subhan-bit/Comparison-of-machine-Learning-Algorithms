@@ -76,10 +76,19 @@ class Node:
         return self.left is None
 
 
+def check_whole_number(name, value):
+    """Raise a clear error if a setting is not a whole number."""
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+        raise TypeError(f"{name} must be a whole number, not {value!r}")
+
+
 class DecisionTree(Classifier):
     def __init__(self, measure="gini", max_depth=None, min_samples_split=2):
         if measure not in MEASURES:
             raise ValueError(f"measure must be one of {list(MEASURES)}, not {measure!r}")
+        if max_depth is not None:
+            check_whole_number("max_depth", max_depth)
+        check_whole_number("min_samples_split", min_samples_split)
         if max_depth is not None and max_depth < 0:
             raise ValueError("max_depth must be 0 or more")
         if min_samples_split < 2:
