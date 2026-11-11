@@ -68,8 +68,8 @@ MEASURES = {"gini": gini, "entropy": entropy, "misclassification": misclassifica
 class Node:
     """One node of the tree. A leaf has no question and no children."""
 
-    def __init__(self, shares):
-        self.shares = shares   # the share of each class among the training rows here
+    def __init__(self, scores):
+        self.scores = scores   # the smoothed share of each class among the training rows here
         self.feature = None    # the question is: is X[feature] <= threshold?
         self.threshold = None
         self.left = None       # rows where the answer is yes
@@ -106,7 +106,10 @@ class DecisionTree(Classifier):
 
     def _grow(self, X, codes, depth):
         """Make a node for these rows, and keep splitting until a stopping rule says stop."""
-        node = Node(np.bincount(codes, minlength=self.n_classes) / len(codes))
+        # Smoothed share: (count + 1) / (rows + classes). A leaf of 1 row is then
+        # less sure than a leaf of 50 rows, so a full tree gives more than 0 and 1.
+        counts = np.bincount(codes, minlength=self.n_classes)
+        node = Node((counts + 1) / (len(codes) + self.n_classes))
         if self._should_stop(codes, depth):
             return node
         split = best_split(X, codes, self.measure)
@@ -133,7 +136,7 @@ class DecisionTree(Classifier):
         return node
 
     def _predict_scores(self, X: np.ndarray) -> np.ndarray:
-        return np.array([self._leaf_for(point).shares for point in X])
+        return np.array([self._leaf_for(point).scores for point in X])
 
     def count_leaves(self, node=None):
         if node is None:
@@ -164,14 +167,14 @@ class DecisionTree(Classifier):
     def _prune(self, node, X, codes):
         """Prune from the bottom up, and return how many validation rows this node gets wrong."""
         if node.is_leaf():
-            return np.sum(codes != node.shares.argmax())
+            return np.sum(codes != node.scores.argmax())
         if len(codes) == 0:
             return 0  # no validation row gets here, so there is no evidence to prune it
 
         goes_left = X[:, node.feature] <= node.threshold
         wrong_below = (self._prune(node.left, X[goes_left], codes[goes_left])
                        + self._prune(node.right, X[~goes_left], codes[~goes_left]))
-        wrong_as_leaf = np.sum(codes != node.shares.argmax())
+        wrong_as_leaf = np.sum(codes != node.scores.argmax())
 
         # a tie goes to the leaf, because the smaller tree is simpler
         if wrong_as_leaf <= wrong_below:

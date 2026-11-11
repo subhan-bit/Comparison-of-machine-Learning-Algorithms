@@ -100,20 +100,34 @@ def test_works_on_blobs_xor_and_circles_with_every_measure():
             assert accuracy(model, make(100, seed=2)) >= 0.85, (make.__name__, measure)
 
 
-def test_scores_are_the_class_shares_in_the_leaf():
+def test_scores_are_the_smoothed_class_shares_in_the_leaf():
     # rows 0-2 can't be told apart, so they end up in one leaf: 2 of class a, 1 of class b
+    # smoothed share = (count + 1) / (rows + number of classes)
     data = Dataset([[1], [1], [1], [5]], ["a", "a", "b", "b"])
     model = DecisionTree()
     model.train(data)
-    assert model.predict_scores([[1]])[0] == pytest.approx([2 / 3, 1 / 3])
+    assert model.predict_scores([[1]])[0] == pytest.approx([3 / 5, 2 / 5])
     assert model.predict([[1], [5]]).tolist() == ["a", "b"]
 
 
-def test_max_depth_0_just_predicts_the_shares_of_the_whole_training_set():
+def test_scores_of_a_full_tree_are_not_only_0_and_1():
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(500, 2))
+    y = np.zeros(500, dtype=int)
+    y[rng.choice(500, 10, replace=False)] = 1  # 2% positive
+    model = DecisionTree()
+    model.train(Dataset(X, y))
+
+    scores = model.predict_scores(rng.normal(size=(200, 2)))[:, 1]
+    assert len(np.unique(scores)) > 2  # leaves of different sizes give different scores
+    assert scores.min() > 0 and scores.max() < 1  # no leaf is completely sure
+
+
+def test_max_depth_0_just_predicts_the_smoothed_shares_of_the_whole_training_set():
     data = Dataset([[1], [2], [3], [4]], ["a", "a", "a", "b"])
     model = DecisionTree(max_depth=0)
     model.train(data)
-    assert model.predict_scores([[4]]).tolist() == [[0.75, 0.25]]
+    assert model.predict_scores([[4]])[0] == pytest.approx([4 / 6, 2 / 6])
 
 
 def test_max_depth_1_makes_one_split():
