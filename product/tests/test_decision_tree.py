@@ -226,6 +226,21 @@ def test_pruning_keeps_a_split_that_helps():
     assert model.count_leaves() == 2
 
 
+def test_a_very_deep_tree_can_be_trained_counted_and_pruned():
+    # alternating labels on one feature need a split between every pair of rows,
+    # so the tree is far deeper than Python's recursion limit
+    X = [[i] for i in range(2000)]
+    labels = [i % 2 for i in range(2000)]
+    model = DecisionTree()
+    model.train(Dataset(X, labels))
+    assert model.count_leaves() == 2000
+    assert accuracy(model, Dataset(X, labels)) == 1
+
+    # pruning against the same rows keeps every split, because each one is right
+    model.prune(Dataset(X, labels))
+    assert model.count_leaves() == 2000
+
+
 def test_pruning_rejects_an_empty_validation_set():
     model = DecisionTree()
     model.train(Dataset([[1], [2]], ["a", "b"]))

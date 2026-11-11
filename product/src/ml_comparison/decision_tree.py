@@ -140,25 +140,32 @@ class DecisionTree(Classifier):
 
     def _train(self, data: Dataset) -> None:
         self.n_classes = len(data.classes)
-        self.root = self._grow(data.X, data.codes, depth=0)
+        self.root = self._new_node(data.codes)
 
-    def _grow(self, X, codes, depth):
-        """Make a node for these rows, and keep splitting until a stopping rule says stop."""
+        # Nodes still to split, as (node, its rows, their labels, its depth). A list used
+        # as a stack, not recursion, so a deep tree cannot hit Python's recursion limit.
+        to_split = [(self.root, data.X, data.codes, 0)]
+        while to_split:
+            node, X, codes, depth = to_split.pop()
+            if self._should_stop(codes, depth):
+                continue
+            split = best_split(X, codes, self.measure)
+            if split is None:  # every row is the same, or no split helps
+                continue
+
+            node.feature, node.threshold = split
+            goes_left = X[:, node.feature] <= node.threshold
+            node.left = self._new_node(codes[goes_left])
+            node.right = self._new_node(codes[~goes_left])
+            to_split.append((node.left, X[goes_left], codes[goes_left], depth + 1))
+            to_split.append((node.right, X[~goes_left], codes[~goes_left], depth + 1))
+
+    def _new_node(self, codes):
+        """A leaf for these rows. Its scores are the smoothed share of each class."""
         # Smoothed share: (count + 1) / (rows + classes). A leaf of 1 row is then
         # less sure than a leaf of 50 rows, so a full tree gives more than 0 and 1.
         counts = np.bincount(codes, minlength=self.n_classes)
-        node = Node((counts + 1) / (len(codes) + self.n_classes))
-        if self._should_stop(codes, depth):
-            return node
-        split = best_split(X, codes, self.measure)
-        if split is None:  # every row is the same, so there is nothing to ask
-            return node
-
-        node.feature, node.threshold = split
-        goes_left = X[:, node.feature] <= node.threshold
-        node.left = self._grow(X[goes_left], codes[goes_left], depth + 1)
-        node.right = self._grow(X[~goes_left], codes[~goes_left], depth + 1)
-        return node
+        return Node((counts + 1) / (len(codes) + self.n_classes))
 
     def _should_stop(self, codes, depth):
         is_pure = len(np.unique(codes)) == 1
@@ -176,12 +183,17 @@ class DecisionTree(Classifier):
     def _predict_scores(self, X: np.ndarray) -> np.ndarray:
         return np.array([self._leaf_for(point).scores for point in X])
 
-    def count_leaves(self, node=None):
-        if node is None:
-            node = self.root
-        if node.is_leaf():
-            return 1
-        return self.count_leaves(node.left) + self.count_leaves(node.right)
+    def count_leaves(self):
+        """How many leaves the tree has (a smaller tree is a simpler one)."""
+        leaves = 0
+        to_visit = [self.root]
+        while to_visit:
+            node = to_visit.pop()
+            if node.is_leaf():
+                leaves += 1
+            else:
+                to_visit.extend([node.left, node.right])
+        return leaves
 
     def prune(self, validation: Dataset) -> None:
         """Reduced-error pruning: turn a node into a leaf if that is no worse on the validation set."""
@@ -200,22 +212,34 @@ class DecisionTree(Classifier):
             if label not in position:
                 raise ValueError(f"validation label {label!r} was not in the training data")
             codes.append(position[label])
-        self._prune(self.root, validation.X, np.array(codes, dtype=int))
+        self._prune(validation.X, np.array(codes, dtype=int))
 
-    def _prune(self, node, X, codes):
-        """Prune from the bottom up, and return how many validation rows this node gets wrong."""
-        if node.is_leaf():
-            return np.sum(codes != node.scores.argmax())
-        if len(codes) == 0:
-            return 0  # no validation row gets here, so there is no evidence to prune it
+    def _prune(self, X, codes):
+        """Prune from the bottom up, using a stack instead of recursion."""
+        # Going down: find which validation rows reach each node. A node is added to the
+        # list before its children, so going through the list backwards does children first.
+        reached = []  # (node, labels of the validation rows that reach it)
+        to_visit = [(self.root, X, codes)]
+        while to_visit:
+            node, X, codes = to_visit.pop()
+            reached.append((node, codes))
+            if node.is_leaf() or len(codes) == 0:
+                continue  # no validation row gets below here, so there is no evidence to prune it
+            goes_left = X[:, node.feature] <= node.threshold
+            to_visit.append((node.left, X[goes_left], codes[goes_left]))
+            to_visit.append((node.right, X[~goes_left], codes[~goes_left]))
 
-        goes_left = X[:, node.feature] <= node.threshold
-        wrong_below = (self._prune(node.left, X[goes_left], codes[goes_left])
-                       + self._prune(node.right, X[~goes_left], codes[~goes_left]))
-        wrong_as_leaf = np.sum(codes != node.scores.argmax())
-
-        # a tie goes to the leaf, because the smaller tree is simpler
-        if wrong_as_leaf <= wrong_below:
-            node.feature = node.threshold = node.left = node.right = None
-            return wrong_as_leaf
-        return wrong_below
+        # Going up: wrong[node] is how many validation rows this node gets wrong
+        wrong = {}
+        for node, codes in reversed(reached):
+            wrong_as_leaf = np.sum(codes != node.scores.argmax())
+            if node.is_leaf() or len(codes) == 0:
+                wrong[node] = wrong_as_leaf
+                continue
+            wrong_below = wrong[node.left] + wrong[node.right]
+            # a tie goes to the leaf, because the smaller tree is simpler
+            if wrong_as_leaf <= wrong_below:
+                node.feature = node.threshold = node.left = node.right = None
+                wrong[node] = wrong_as_leaf
+            else:
+                wrong[node] = wrong_below
