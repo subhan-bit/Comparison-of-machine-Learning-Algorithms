@@ -3,6 +3,8 @@ import pytest
 
 from ml_comparison.classifier import Classifier
 from ml_comparison.dataset import Dataset
+from ml_comparison.decision_tree import DecisionTree
+from ml_comparison.knn import KNN
 
 
 class AlwaysFirst(Classifier):
@@ -51,6 +53,18 @@ def test_wrong_use_is_rejected():
         model.predict([1, 1])         # not a table
     with pytest.raises(ValueError, match="features"):
         model.predict([[1, 2, 3]])    # wrong number of columns
+
+
+def test_predict_rejects_values_that_are_not_finite():
+    # the dots used for training are checked for NaN and infinity, so the dots to classify must be too:
+    # before, k-NN crashed with an IndexError on NaN, and the tree and k-NN answered without a word
+    for model in (AlwaysFirst(), KNN(k=1), DecisionTree()):
+        model.train(DATA)
+        for bad in (np.nan, np.inf, -np.inf):
+            with pytest.raises(ValueError, match="finite"):
+                model.predict([[bad, 1]])
+            with pytest.raises(ValueError, match="finite"):
+                model.predict_scores([[1, bad]])
 
 
 def test_wrong_score_shape_is_rejected():

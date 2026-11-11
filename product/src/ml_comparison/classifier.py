@@ -38,6 +38,9 @@ class Classifier(ABC):
             raise ValueError(f"X must be 2-D, got shape {X.shape}")
         if X.shape[1] != self.n_features_:
             raise ValueError(f"X has {X.shape[1]} features but the model was trained on {self.n_features_}")
+        # Dataset checks this for the training data, so check it for the dots to classify too
+        if not np.isfinite(X).all():
+            raise ValueError("X must contain only finite numbers (no NaN or inf)")
 
         scores = np.asarray(self._predict_scores(X))
         expected = (len(X), len(self.classes_))
