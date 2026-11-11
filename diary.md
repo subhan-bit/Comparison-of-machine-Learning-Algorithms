@@ -39,8 +39,16 @@
   - These checks are small, but they guard against failures with no warning: a vanished column or an extra class would change every result without any error.
   - A stricter check can also reject a file that used to work. After each change I loaded all six real data sets, and all still load. Several blank column names have to stay allowed, because the real Breast Cancer header ends with a comma, so a test covers that case.
 - Effect on results: none. The data sets and the tie counts are unchanged.
+- Fixed the set-up problems from the audit (issue #14, branch feature/setup-fixes) with Claude Code's help (see AI.md), in three small commits:
+  - make_xor: n is the total number of points, while make_blobs and make_circles make n per class (2n). I documented this in the docstrings and pinned the sizes with a test, and left the data unchanged. Making the sizes match would have changed every XOR number in my report.
+  - README: it now starts with a python3 --version check and says what to do if the version is older than 3.11 (for example python3.12 -m venv .venv).
+  - CI: .gitlab-ci.yml has image: python:3.12, so the pipeline runs on a fixed Python and not whatever the runner has.
+- What I learnt from issue #14:
+  - I followed my own README with the macOS system Python (3.9.6) in a clean copy, and it failed with "No matching distribution found for numpy==2.5.3". That message never mentions the Python version, so a basic set-up problem looks like a package problem. Following the instructions on a clean copy, on an older Python, found it. Reading the README would not have.
+  - Some fixes are documentation, not code, and no test can fail first for them. I wrote a test that pins the behaviour instead, and said so.
+- Effect on results: none. Not yet checked: the CI image on the university runner. I will look at the first lines of the pipeline log (it should say Python 3.12) and remove the line if the image cannot be pulled.
 - Behind plan: the audit fixes took the time, so the evaluation framework has not started and the two early reports are still to be written.
-- Next: the other audit groups (set-up problems, the tie-count script and its uninformative fraud row, the remaining tree points), then the early reports and the evaluation framework.
+- Next: the other audit groups (the tie-count script and its uninformative fraud row, the remaining tree points), then the early reports and the evaluation framework.
 
 ## Week 6
 - Decision trees (issue #7) merged into main on GitLab and mirrored to GitHub.

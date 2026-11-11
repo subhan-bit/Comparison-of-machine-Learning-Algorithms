@@ -34,6 +34,14 @@ def test_circles_are_at_radius_1_and_3():
     assert np.allclose(radius[data.y == 1], 3)
 
 
+def test_n_means_n_per_class_for_blobs_and_circles_but_n_in_all_for_xor():
+    # the XOR labels come from where each random point lands, so the classes can't be
+    # made the same size; blobs and circles make n points for each of the 2 classes
+    assert len(make_blobs(30, seed=1)) == 60
+    assert len(make_circles(30, seed=1)) == 60
+    assert len(make_xor(30, seed=1)) == 30
+
+
 def test_same_seed_gives_the_same_data():
     for make in [make_blobs, make_xor, make_circles]:
         first = make(20, seed=7)
