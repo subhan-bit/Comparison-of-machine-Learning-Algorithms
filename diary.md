@@ -31,8 +31,16 @@
   - My own worked example depended on row order. E at (4,5) was exactly as far from Q as D, so the "2 red, 2 blue tie at k=4" only happened because the old code dropped E. I only noticed because the new rule broke five of my tests. I moved E to (4,6): every answer in the example stayed the same and k=4 is now a real tie. This is the same kind of hidden default as the alphabetical order in Week 3.
   - A new rule can have side effects on a claim I made. With tied distances more than k points vote, so with two classes an odd k can tie after all. It did on Spambase (0.1 to 0.4% at odd k), and the notes now say so.
 - Effect on results: only the Spambase row of the tie table moves (12.2 to 11.8 at k=2, 6.2 to 5.9 at k=4, 4.3 to 3.9 at k=6); the other data sets give the same counts. The Word report still has the old table and the old example point, and will be updated after issue #15 regenerates the table.
+- Fixed the data-loading problems from the audit (issue #13, branch feature/data-checks) with Claude Code's help (see AI.md), writing a failing test first, in three code commits:
+  - load_csv rejects a header with repeated column names. Before, the second column silently replaced the first, so a feature just disappeared.
+  - Dataset gives a clear "X must be a rectangular table of numbers" error for a dict, an object, a complex number or a set. Before, Dataset([{}], [0]) gave a raw TypeError.
+  - Dataset and load_csv reject blank labels, and load_csv gives the line number. Before, an empty label cell became a class called ''.
+- What I learnt from issue #13:
+  - These checks are small, but they guard against failures with no warning: a vanished column or an extra class would change every result without any error.
+  - A stricter check can also reject a file that used to work. After each change I loaded all six real data sets, and all still load. Several blank column names have to stay allowed, because the real Breast Cancer header ends with a comma, so a test covers that case.
+- Effect on results: none. The data sets and the tie counts are unchanged.
 - Behind plan: the audit fixes took the time, so the evaluation framework has not started and the two early reports are still to be written.
-- Next: the other audit groups (data checks, set-up problems, the tie-count script and its uninformative fraud row, the remaining tree points), then the early reports and the evaluation framework.
+- Next: the other audit groups (set-up problems, the tie-count script and its uninformative fraud row, the remaining tree points), then the early reports and the evaluation framework.
 
 ## Week 6
 - Decision trees (issue #7) merged into main on GitLab and mirrored to GitHub.
