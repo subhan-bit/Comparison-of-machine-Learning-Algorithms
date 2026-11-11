@@ -47,20 +47,30 @@ class KNN(Classifier):
         self.n_classes = len(data.classes)
 
     def _neighbours(self, point):
-        """The positions and distances of the k closest training points, closest first."""
+        """The positions and distances of the k closest training points, closest first.
+
+        If several points are tied at the k-th distance they all count, so there can be
+        more than k. Otherwise the row order of the data would decide which of them is
+        the k-th neighbour.
+        """
         distances = self.distance(self.train_X, point)
-        nearest = np.argsort(distances, kind="stable")[:self.k]
+        kth_distance = np.partition(distances, self.k - 1)[self.k - 1]  # no need to sort them all
+        close_enough = np.flatnonzero((distances < kth_distance) | same(distances, kth_distance))
+        # closest first; points at the same distance stay in row order
+        order = np.argsort(distances[close_enough], kind="stable")
+        nearest = close_enough[order]
         return nearest, distances[nearest]
 
     def _predict_scores(self, X: np.ndarray) -> np.ndarray:
         scores = np.zeros((len(X), self.n_classes))
         for row, point in enumerate(X):
             nearest, _ = self._neighbours(point)
-            # each of the k neighbours gives one vote to its class
+            # each neighbour gives one vote to its class
             for i in nearest:
                 scores[row, self.train_codes[i]] += 1
-        # turn the vote counts into shares of the vote
-        return scores / self.k
+            # turn the vote counts into shares of the vote (usually k votes, more if tied)
+            scores[row] /= len(nearest)
+        return scores
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Like the base class, but a tie for the top score is broken by the chosen strategy."""

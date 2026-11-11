@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import pytest
 
@@ -5,8 +7,10 @@ from ml_comparison.artificial import make_blobs, make_xor
 from ml_comparison.dataset import Dataset
 from ml_comparison.knn import KNN, has_tie
 
-# The dots from documents/knn/knn.md: A, B red and C, D, E blue
-DOTS = Dataset([[1, 1], [2, 1], [4, 4], [5, 4], [4, 5]],
+# The dots from documents/knn/knn.md: A, B red and C, D, E blue.
+# E is at (4, 6), not (4, 5): (4, 5) is exactly as far from Q as D is, so the 4th neighbour
+# would be a distance tie that only the row order could settle.
+DOTS = Dataset([[1, 1], [2, 1], [4, 4], [5, 4], [4, 6]],
                ["red", "red", "blue", "blue", "blue"])
 Q = [[2, 2]]
 
@@ -60,6 +64,53 @@ def test_bad_settings_are_rejected():
         KNN(distance="cosine")          # only euclidean or manhattan
     with pytest.raises(ValueError):
         KNN(k=10).train(DOTS)           # more neighbours than training points
+
+
+def test_every_point_tied_at_the_kth_distance_votes_whatever_order_the_rows_are_in():
+    # Q is (0, 0) and all three points are exactly 1 away: one red and two blue
+    points = [[0, 1], [1, 0], [0, -1]]
+    labels = ["red", "blue", "blue"]
+    for order in itertools.permutations(range(3)):
+        data = Dataset([points[i] for i in order], [labels[i] for i in order])
+        model = KNN(k=1)
+        model.train(data)
+        # the classes are sorted: blue, red. All three tied points vote, so 2 blue and 1 red
+        assert model.predict_scores([[0, 0]])[0] == pytest.approx([2 / 3, 1 / 3]), order
+        assert model.predict([[0, 0]]).tolist() == ["blue"], order
+
+
+def test_the_old_example_point_was_a_hidden_distance_tie():
+    # with E at (4, 5), D and E are both exactly sqrt(13) from Q, so k=4 has five voters:
+    # 2 red and 3 blue, and there is no vote tie. The old code let row order drop E.
+    data = Dataset([[1, 1], [2, 1], [4, 4], [5, 4], [4, 5]],
+                   ["red", "red", "blue", "blue", "blue"])
+    model = KNN(k=4)
+    model.train(data)
+    assert model.predict_scores(Q)[0] == pytest.approx([0.6, 0.4])  # blue, red
+
+
+def test_the_tie_can_be_further_out_than_the_nearest_point():
+    # distances from (0, 0): 1 (red), then 2 (blue), 2 (blue), then 3 (red)
+    data = Dataset([[1, 0], [2, 0], [0, 2], [3, 0]], ["red", "blue", "blue", "red"])
+    model = KNN(k=2)
+    model.train(data)
+    # the 2nd distance is 2, which two points share, so three points vote: 1 red, 2 blue
+    assert model.predict_scores([[0, 0]])[0] == pytest.approx([2 / 3, 1 / 3])
+
+
+def test_without_tied_distances_the_votes_match_a_plain_full_sort():
+    rng = np.random.default_rng(0)
+    data = Dataset(rng.normal(size=(200, 3)), rng.integers(0, 4, size=200))
+    queries = rng.normal(size=(30, 3))
+    for k in (1, 5, 20):
+        model = KNN(k=k)
+        model.train(data)
+        expected = np.zeros((30, 4))
+        for row, q in enumerate(queries):
+            nearest = np.argsort(((data.X - q) ** 2).sum(axis=1))[:k]
+            for i in nearest:
+                expected[row, data.codes[i]] += 1
+        assert model.predict_scores(queries) == pytest.approx(expected / k)
 
 
 def test_k_must_be_a_whole_number():
@@ -152,7 +203,7 @@ def test_has_tie_ignores_tiny_rounding_differences():
 
 
 def test_changing_the_original_data_does_not_change_a_trained_model():
-    data = Dataset([[1, 1], [2, 1], [4, 4], [5, 4], [4, 5]],
+    data = Dataset([[1, 1], [2, 1], [4, 4], [5, 4], [4, 6]],
                    ["red", "red", "blue", "blue", "blue"])
     model = KNN(k=1)
     model.train(data)
