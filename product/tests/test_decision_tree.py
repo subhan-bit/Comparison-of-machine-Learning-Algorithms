@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import pytest
 
@@ -79,6 +81,48 @@ def test_no_split_when_no_split_lowers_the_impurity():
 
     # gini can see that isolating the odd label helps, so it still splits
     assert best_split(X, codes, gini) is not None
+
+
+def slow_best_split(X, codes, measure):
+    """The simple search the code used to do: rescan every row for every threshold."""
+    X = np.asarray(X, dtype=float)
+    codes = np.asarray(codes)
+    best = None
+    best_score = measure(codes)
+    for feature in range(X.shape[1]):
+        values = np.unique(X[:, feature])
+        for threshold in (values[:-1] + values[1:]) / 2:
+            goes_left = X[:, feature] <= threshold
+            score = split_impurity(codes[goes_left], codes[~goes_left], measure)
+            # scores within 1e-12 count as equal, so rounding cannot pick a winner
+            if score < best_score - 1e-12:
+                best = (feature, float(threshold))
+                best_score = score
+    return best
+
+
+def test_the_fast_search_finds_the_same_split_as_the_slow_one():
+    rng = np.random.default_rng(0)
+    for measure in [gini, entropy, misclassification]:
+        for n_classes in [2, 3]:
+            # whole numbers from 0 to 9, so values repeat
+            X = rng.integers(0, 10, size=(60, 3))
+            codes = rng.integers(0, n_classes, size=60)
+            assert best_split(X, codes, measure) == slow_best_split(X, codes, measure)
+
+
+def test_best_split_copes_with_many_rows():
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(20000, 5))
+    codes = (X[:, 3] > 0.5).astype(int)  # only feature 3 matters
+
+    start = time.perf_counter()
+    feature, threshold = best_split(X, codes, gini)
+    seconds = time.perf_counter() - start
+
+    assert feature == 3
+    assert threshold == pytest.approx(0.5, abs=0.01)
+    assert seconds < 3  # the slow search took about 10 seconds
 
 
 def accuracy(model, data):

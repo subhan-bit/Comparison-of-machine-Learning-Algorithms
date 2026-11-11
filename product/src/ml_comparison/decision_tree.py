@@ -13,22 +13,42 @@ def class_shares(codes):
     return counts / counts.sum()
 
 
+def gini_of(p):
+    """Gini index from class shares p (the last axis): 1 - sum of p^2."""
+    return 1 - (p ** 2).sum(axis=-1)
+
+
+def entropy_of(p):
+    """Entropy from class shares p (the last axis): - sum of p * log2(p)."""
+    safe = np.where(p > 0, p, 1)  # log2(1) is 0, so a class with no rows adds nothing
+    return -(p * np.log2(safe)).sum(axis=-1)
+
+
+def misclassification_of(p):
+    """Misclassification error from class shares p (the last axis): 1 - the biggest share."""
+    return 1 - p.max(axis=-1)
+
+
 def gini(codes):
-    """Gini index: 1 - sum of p^2. 0 for a pure group."""
-    p = class_shares(codes)
-    return 1 - (p ** 2).sum()
+    """Gini index of a group of labels. 0 for a pure group."""
+    return gini_of(class_shares(codes))
 
 
 def entropy(codes):
-    """Entropy: - sum of p * log2(p). 0 for a pure group."""
-    p = class_shares(codes)
-    return -(p * np.log2(p)).sum()
+    """Entropy of a group of labels. 0 for a pure group."""
+    return entropy_of(class_shares(codes))
 
 
 def misclassification(codes):
-    """Misclassification error: 1 - the biggest share. 0 for a pure group."""
-    p = class_shares(codes)
-    return 1 - p.max()
+    """Misclassification error of a group of labels. 0 for a pure group."""
+    return misclassification_of(class_shares(codes))
+
+
+# the same three measures, for many groups at once (used by the fast split search)
+MEASURES_OF_SHARES = {gini: gini_of, entropy: entropy_of, misclassification: misclassification_of}
+
+# two scores closer than this count as equal, so rounding errors cannot pick a winner
+TINY = 1e-12
 
 
 def split_impurity(left, right, measure):
@@ -45,20 +65,38 @@ def best_split(X, codes, measure):
     """
     X = np.asarray(X, dtype=float)
     codes = np.asarray(codes)
+    impurity_of = MEASURES_OF_SHARES[measure]
+    n = len(codes)
+    one_hot = np.eye(codes.max() + 1)[codes]  # one row per example, a 1 in its class column
+
     best = None
-    # a split must beat the impurity before splitting. The tiny gap stops rounding
-    # errors from counting a tie as an improvement.
-    best_score = measure(codes) - 1e-12
+    best_score = measure(codes)  # a split has to beat the impurity before splitting
     for feature in range(X.shape[1]):
-        values = np.unique(X[:, feature])  # each value once, sorted
-        # try a threshold halfway between each pair of neighbouring values
-        for threshold in (values[:-1] + values[1:]) / 2:
-            goes_left = X[:, feature] <= threshold
-            score = split_impurity(codes[goes_left], codes[~goes_left], measure)
-            # only a strictly better score wins, so a tie keeps the first split found
-            if score < best_score:
-                best = (feature, float(threshold))
-                best_score = score
+        # sort the rows by this feature once, then sweep along them
+        order = np.argsort(X[:, feature], kind="stable")
+        values = X[order, feature]
+        # left_counts[i] = how many rows of each class are among the first i + 1 rows
+        left_counts = np.cumsum(one_hot[order], axis=0)
+
+        # a threshold only makes sense between two different values
+        between_different = values[:-1] < values[1:]
+        if not between_different.any():
+            continue
+        n_left = np.arange(1, n)[between_different]
+        left = left_counts[:-1][between_different]
+        right = left_counts[-1] - left
+        thresholds = ((values[:-1] + values[1:]) / 2)[between_different]
+
+        # the impurity of every split on this feature at once, weighted by group size
+        scores = (n_left * impurity_of(left / n_left[:, None])
+                  + (n - n_left) * impurity_of(right / (n - n_left)[:, None])) / n
+
+        # only a clearly better score wins, so a tie keeps the first split found
+        lowest = scores.min()
+        if lowest < best_score - TINY:
+            first_lowest = np.argmax(scores <= lowest + TINY)
+            best = (feature, float(thresholds[first_lowest]))
+            best_score = scores[first_lowest]
     return best
 
 
