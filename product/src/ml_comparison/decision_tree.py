@@ -60,8 +60,9 @@ def split_impurity(left, right, measure):
 def best_split(X, codes, measure):
     """Try every feature and threshold, and return (feature, threshold) of the purest split.
 
-    Returns None if no split is possible (every row has the same values) or if no
-    split makes the groups purer than the rows are now.
+    Returns None if no split is possible, because every row has the same values.
+    The split is returned even if it does not make the groups purer: on a balanced
+    XOR no single split gains anything, but the splits after it do.
     """
     X = np.asarray(X, dtype=float)
     codes = np.asarray(codes)
@@ -70,7 +71,7 @@ def best_split(X, codes, measure):
     one_hot = np.eye(codes.max() + 1)[codes]  # one row per example, a 1 in its class column
 
     best = None
-    best_score = measure(codes)  # a split has to beat the impurity before splitting
+    best_score = np.inf  # the first split found always counts, even if it gains nothing
     for feature in range(X.shape[1]):
         # sort the rows by this feature once, then sweep along them
         order = np.argsort(X[:, feature], kind="stable")
@@ -78,14 +79,20 @@ def best_split(X, codes, measure):
         # left_counts[i] = how many rows of each class are among the first i + 1 rows
         left_counts = np.cumsum(one_hot[order], axis=0)
 
+        lower, upper = values[:-1], values[1:]
+        with np.errstate(over="ignore"):  # a huge gap overflows to inf, and is skipped below
+            midpoints = lower + (upper - lower) / 2  # (lower + upper) / 2 can overflow
+
         # a threshold only makes sense between two different values
-        between_different = values[:-1] < values[1:]
-        if not between_different.any():
+        usable = lower < upper
+        if not usable.any():
             continue
-        n_left = np.arange(1, n)[between_different]
-        left = left_counts[:-1][between_different]
+        n_left = np.arange(1, n)[usable]
+        left = left_counts[:-1][usable]
         right = left_counts[-1] - left
-        thresholds = ((values[:-1] + values[1:]) / 2)[between_different]
+        # Two values one float step apart can have a midpoint that rounds up to the upper
+        # value, which would send every row left. Then the lower value itself separates them.
+        thresholds = np.where(midpoints < upper, midpoints, lower)[usable]
 
         # the impurity of every split on this feature at once, weighted by group size
         scores = (n_left * impurity_of(left / n_left[:, None])

@@ -69,18 +69,65 @@ def test_no_split_when_all_rows_are_the_same():
     assert best_split([[1, 2], [1, 2]], [0, 1], gini) is None
 
 
-def test_no_split_when_no_split_lowers_the_impurity():
-    # one odd label among five: every split leaves the misclassification error at 0.2
+def sides_of(split, X):
+    """How many rows go left and right for a (feature, threshold) split."""
+    feature, threshold = split
+    goes_left = np.asarray(X, dtype=float)[:, feature] <= threshold
+    return goes_left.sum(), (~goes_left).sum()
+
+
+def test_a_split_never_leaves_one_side_empty_for_values_one_float_step_apart():
+    # halfway between two neighbouring floats rounds to one of them, so a careless
+    # midpoint can send every row left and make train() repeat the same split forever
+    a = np.nextafter(1.0, 2)
+    b = np.nextafter(a, 2)
+    X = [[a], [b]]
+    split = best_split(X, [0, 1], gini)
+    assert sides_of(split, X) == (1, 1)  # still told apart, one row on each side
+
+    model = DecisionTree()
+    model.train(Dataset(X, [0, 1]))  # must finish
+    assert model.count_leaves() == 2
+
+
+def test_the_midpoint_of_very_large_values_does_not_overflow():
+    for X in ([[1e308], [1.7e308]], [[-1.7e308], [1.7e308]]):
+        split = best_split(X, [0, 1], gini)
+        assert np.isfinite(split[1])
+        assert sides_of(split, X) == (1, 1)
+
+
+def test_a_split_is_made_even_when_it_does_not_lower_the_impurity():
+    # one odd label among five: every split leaves the misclassification error at 0.2,
+    # but a tree that stopped here could never get the odd label right
     X = [[1], [2], [3], [4], [5]]
     codes = [0, 0, 1, 0, 0]
-    assert best_split(X, codes, misclassification) is None
+    assert best_split(X, codes, misclassification) == (0, 1.5)  # the first split found
 
+    data = Dataset(X, ["a", "a", "b", "a", "a"])
     model = DecisionTree(measure="misclassification")
-    model.train(Dataset(X, ["a", "a", "b", "a", "a"]))
-    assert model.count_leaves() == 1
+    model.train(data)
+    assert model.count_leaves() > 1
+    assert accuracy(model, data) == 1
 
-    # gini can see that isolating the odd label helps, so it still splits
-    assert best_split(X, codes, gini) is not None
+
+def test_every_measure_solves_a_balanced_xor():
+    # four exact groups: no single split gives any gain, but two splits solve it
+    X = [[0, 0], [1, 1], [0, 1], [1, 0]] * 25
+    data = Dataset(X, ["a", "a", "b", "b"] * 25)
+    for measure in ["gini", "entropy", "misclassification"]:
+        model = DecisionTree(measure=measure)
+        model.train(data)
+        assert accuracy(model, data) == 1, measure
+        assert model.count_leaves() == 4, measure
+
+
+def test_every_measure_solves_random_xor_points():
+    data = make_xor(400, seed=0)
+    for measure in ["gini", "entropy", "misclassification"]:
+        model = DecisionTree(measure=measure)
+        model.train(data)
+        assert accuracy(model, data) == 1, measure
 
 
 def slow_best_split(X, codes, measure):
@@ -88,7 +135,7 @@ def slow_best_split(X, codes, measure):
     X = np.asarray(X, dtype=float)
     codes = np.asarray(codes)
     best = None
-    best_score = measure(codes)
+    best_score = np.inf
     for feature in range(X.shape[1]):
         values = np.unique(X[:, feature])
         for threshold in (values[:-1] + values[1:]) / 2:

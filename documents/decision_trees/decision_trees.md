@@ -12,8 +12,9 @@ The tree is built from the top down. At each node:
 1. Try every feature, and every threshold between two neighbouring values.
 2. For each try, split the rows into a left group (<= threshold) and a right
    group (> threshold).
-3. Keep the split that makes the two groups the purest, but only if they are
-   purer than the node is now. If no split helps, the node becomes a leaf.
+3. Keep the split that makes the two groups the purest. This is done even if
+   the groups are no purer than the node is now (see "Splits that gain
+   nothing" below).
 4. Do the same again inside each group, until a stopping rule says stop.
 
 If two splits score the same, the first one found wins: the lowest feature
@@ -21,6 +22,27 @@ number, then the lowest threshold. Scores that differ by less than 1e-12
 count as the same, so rounding errors cannot decide. To keep the search fast,
 each feature is sorted once and all its thresholds are scored together from
 running class counts, instead of rescanning every row for every threshold.
+
+A threshold is the midpoint of two neighbouring values, worked out as
+lower + (upper - lower) / 2 so that huge values cannot overflow. If two values
+are only one float step apart, the midpoint can round up to the upper value
+and every row would go left, so the lower value is used instead. Every split
+therefore has rows on both sides, and building the tree always finishes.
+
+## Splits that gain nothing
+Take an XOR: the points (0,0) and (1,1) are labelled a, and (0,1) and (1,0)
+are labelled b. Every single split leaves both sides half a and half b, so no
+impurity measure sees any gain. Yet two splits, one after the other, separate
+the classes perfectly. A tree that refused to split without a gain would stop
+at the root with 50% accuracy.
+
+So a node that is not pure is split anyway, and growth is stopped by the
+stopping rules below and by pruning. A version of the code that stopped when
+no split gained did badly on this: on make_xor(400, seed=0) misclassification
+error stopped at 59.2% training accuracy, while Gini and entropy reached
+100%. That would have made the stopping rule look like part of the measure
+when comparing them (RQ2). Now all three measures solve it, and they differ
+only in which split they choose.
 
 "Pure" means most rows in a group have the same label. With p_c the share of
 class c in a group, there are three common ways to measure impurity [2]:
@@ -51,9 +73,10 @@ made a pure group. This is why Gini and entropy are normally used to grow
 the tree.
 
 Misclassification error can also see no gain at all. With the labels
-0, 0, 1, 0, 0 in a row, every split leaves the error at 0.2, so the tree
-makes no split and stays one leaf. Gini sees that splitting off the odd label
-helps, so it still splits.
+0, 0, 1, 0, 0 in a row, every split leaves the error at 0.2, so it cannot
+tell the splits apart and takes the first one found. Gini sees that splitting
+off the odd label helps, so it picks that split. Pruning later removes any
+split that does not help on the validation set.
 
 ## Stopping and pruning
 A tree grown until every leaf is pure fits the training data perfectly,
