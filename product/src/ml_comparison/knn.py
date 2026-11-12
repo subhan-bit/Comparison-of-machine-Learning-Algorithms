@@ -99,12 +99,21 @@ class KNN(Classifier):
             return rng.choice(tied)
 
         if self.tie_break == "reduce_k":
-            # drop the farthest neighbour and vote again, until one class wins
-            for smaller_k in range(self.k - 1, 0, -1):
-                votes = np.bincount(codes[:smaller_k], minlength=self.n_classes)
+            # Drop the whole farthest group of equally far voters and vote again, until one class wins.
+            # (Dropping just one voter of a group would let the row order decide which of them stays.)
+            still_tied = tied
+            size = len(codes)
+            while True:
+                # keep only the voters that are nearer than the farthest group
+                size = np.count_nonzero(~same(distances[:size], distances[size - 1]))
+                if size == 0:
+                    break  # everything left is equally far, so there is no smaller vote to try
+                votes = np.bincount(codes[:size], minlength=self.n_classes)
                 top = np.flatnonzero(votes == votes.max())
                 if len(top) == 1:
                     return top[0]
+                still_tied = top
+            return still_tied[0]  # still a tie: the class that comes first in the sorted classes wins
 
         if self.tie_break == "weighted":
             # Dudani's rule: the nearest neighbour has weight 1, the k-th has weight 0
