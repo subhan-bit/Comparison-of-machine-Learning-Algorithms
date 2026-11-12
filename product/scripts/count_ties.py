@@ -36,10 +36,20 @@ def subsample(data, n, rng):
 
 
 def split(data, rng):
-    """A random 70% for training and 30% for testing."""
-    rows = rng.permutation(len(data))
-    cut = int(0.7 * len(data))
-    train, test = rows[:cut], rows[cut:]
+    """A random 70% for training and 30% for testing, with every class split the same way.
+
+    Splitting each class on its own (a stratified split) keeps a rare class, such as fraud,
+    in both sets in the same share. A plain random split can leave it almost out of the test set.
+    """
+    train, test = [], []
+    for code in range(len(data.classes)):
+        rows = rng.permutation(np.flatnonzero(data.codes == code))
+        cut = int(0.7 * len(rows))
+        train.append(rows[:cut])
+        test.append(rows[cut:])
+    # shuffle again, so the rows are not in blocks of one class
+    train = rng.permutation(np.concatenate(train))
+    test = rng.permutation(np.concatenate(test))
     return Dataset(data.X[train], data.y[train]), Dataset(data.X[test], data.y[test])
 
 

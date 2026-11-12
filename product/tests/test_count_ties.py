@@ -31,3 +31,11 @@ def test_a_data_sets_row_does_not_depend_on_the_other_data_sets():
         assert rows["B"] == alone, order
     assert count_ties.count_row("B", sets["B"])["ties"] == alone  # and a second run gives the same row
 
+
+def test_the_split_keeps_the_share_of_each_class_and_uses_every_row_once():
+    X = np.arange(100, dtype=float).reshape(-1, 1)  # the number in each row says which row it is
+    data = Dataset(X, ["rare"] * 20 + ["common"] * 80)
+    train, test = count_ties.split(data, np.random.default_rng(0))
+    assert [list(train.y).count("rare"), list(train.y).count("common")] == [14, 56]  # 70% of each class
+    assert [list(test.y).count("rare"), list(test.y).count("common")] == [6, 24]
+    assert sorted(train.X.ravel().tolist() + test.X.ravel().tolist()) == X.ravel().tolist()
