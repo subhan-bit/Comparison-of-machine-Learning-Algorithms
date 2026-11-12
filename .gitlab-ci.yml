@@ -29,10 +29,10 @@ build:
 lint:
   stage: lint
   script:
-    - ruff check src tests
+    - ruff check src tests scripts
 
 test:
   stage: test
   script:
-    - pytest --cov=ml_comparison --cov-report=term-missing --cov-fail-under=90
+    - pytest --cov=ml_comparison --cov-branch --cov-report=term-missing --cov-fail-under=95
   coverage: '/^TOTAL.+?(\d+%)$/'

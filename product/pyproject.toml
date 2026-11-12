@@ -7,7 +7,13 @@ name = "ml-comparison"
 version = "0.1.0"
 description = "From-scratch k-NN, decision tree and SVM comparison"
 requires-python = ">=3.12"
-dependencies = ["numpy", "matplotlib"]
+dependencies = ["numpy>=2.5.3", "matplotlib>=3.11.2"]  # at least the versions pinned in requirements.txt
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "E501"]  # ruff's default rules, plus lines longer than 120
