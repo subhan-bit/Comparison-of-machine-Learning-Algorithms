@@ -120,3 +120,13 @@ def test_spaces_around_a_label_are_not_part_of_the_label(tmp_path):
     data = load_text(tmp_path, "x1,colour\n1,M \n2, M\n3,M\n4,B\n")
     assert list(data.y) == ["M", "M", "M", "B"]
     assert data.classes.tolist() == ["B", "M"]
+
+
+def test_only_ordinary_numbers_are_accepted(tmp_path):
+    # float() also takes "1_0" (as 10) and digits from other scripts, which a data file should not have
+    for bad in ["1_0", "١٢٣", "１２"]:  # the last two are Arabic-Indic and fullwidth digits
+        with pytest.raises(ValueError, match="line 2, column 'x1'.*is not a number"):
+            load_text(tmp_path, f"x1,colour\n{bad},red\n")
+    # the ordinary ways to write a number are fine, with or without spaces around them
+    data = load_text(tmp_path, "x1,colour\n1e3,a\n-2.5,a\n.5,a\n+7,a\n 3 ,a\n")
+    assert data.X.ravel().tolist() == [1000.0, -2.5, 0.5, 7.0, 3.0]

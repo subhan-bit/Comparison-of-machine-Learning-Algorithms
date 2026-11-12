@@ -64,6 +64,9 @@ def load_csv(path, label_column, drop_columns=(), column_names=None, whitespace=
             for name in features:
                 text = row[name]
                 try:
+                    # float() also takes "1_0" (as 10) and digits from other scripts, so rule those out first
+                    if "_" in text or not text.isascii():
+                        raise ValueError
                     value = float(text)
                 except ValueError:
                     raise ValueError(f"{path} line {line}, column {name!r}: {text!r} is not a number")
