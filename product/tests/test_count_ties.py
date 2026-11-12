@@ -1,0 +1,71 @@
+import importlib.util
+from pathlib import Path
+
+import numpy as np
+
+from ml_comparison.dataset import Dataset
+
+# scripts/count_ties.py is a script, not part of the package, so load it from its file
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "count_ties.py"
+spec = importlib.util.spec_from_file_location("count_ties", SCRIPT)
+count_ties = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(count_ties)
+
+
+def random_data(n, seed):
+    """n rows with 3 features and two classes, made up for the tests."""
+    rng = np.random.default_rng(seed)
+    return Dataset(rng.normal(size=(n, 3)), rng.integers(0, 2, size=n))
+
+
+def test_a_data_sets_generator_depends_only_on_its_name():
+    assert count_ties.rng_for("Wine").random() == count_ties.rng_for("Wine").random()
+    assert count_ties.rng_for("Wine").random() != count_ties.rng_for("Iris").random()
+
+
+def test_a_data_sets_row_does_not_depend_on_the_other_data_sets():
+    sets = {"A": random_data(60, 1), "B": random_data(80, 2), "C": random_data(70, 3)}
+    alone = count_ties.count_row("B", sets["B"])["ties"]
+    for order in (["A", "B", "C"], ["C", "B", "A"], ["B", "C"]):
+        rows = {name: count_ties.count_row(name, sets[name])["ties"] for name in order}
+        assert rows["B"] == alone, order
+    assert count_ties.count_row("B", sets["B"])["ties"] == alone  # and a second run gives the same row
+
+
+def test_the_split_keeps_the_share_of_each_class_and_uses_every_row_once():
+    X = np.arange(100, dtype=float).reshape(-1, 1)  # the number in each row says which row it is
+    data = Dataset(X, ["rare"] * 20 + ["common"] * 80)
+    train, test = count_ties.split(data, np.random.default_rng(0))
+    assert [list(train.y).count("rare"), list(train.y).count("common")] == [14, 56]  # 70% of each class
+    assert [list(test.y).count("rare"), list(test.y).count("common")] == [6, 24]
+    assert sorted(train.X.ravel().tolist() + test.X.ravel().tolist()) == X.ravel().tolist()
+
+
+def test_the_rare_class_keeps_every_row_and_the_other_rows_are_sampled():
+    X = np.arange(210, dtype=float).reshape(-1, 1)  # the first 10 rows are the rare class
+    data = Dataset(X, ["rare"] * 10 + ["common"] * 200)
+    sample = count_ties.keep_all_rare_class(data, 30, np.random.default_rng(0))
+    assert [list(sample.y).count("rare"), list(sample.y).count("common")] == [10, 30]
+    assert set(range(10)) <= set(sample.X.ravel().astype(int).tolist())  # every rare row is in the sample
+    again = count_ties.keep_all_rare_class(data, 30, np.random.default_rng(0))
+    assert sample.X.tolist() == again.X.tolist()  # the same generator gives the same sample
+
+
+def test_main_prints_the_tie_table_and_the_rows_used(monkeypatch, capsys):
+    monkeypatch.setattr(count_ties, "load_all", lambda: {"A": random_data(60, 1), "B": random_data(80, 2)})
+    count_ties.main()
+    printed = capsys.readouterr().out
+    assert "| Data set | Classes | k=1 |" in printed
+    assert "| Data set | Rows | Training rows | Test rows | Test rows per class |" in printed
+    assert "| B | 80 |" in printed  # B has 80 rows, in the table of rows used
+
+
+def test_the_fraud_row_is_labelled_as_an_enriched_sample(monkeypatch, capsys):
+    monkeypatch.setattr(count_ties, "GENUINE_ROWS", 50)  # the real script uses 3,000
+    rare = Dataset(np.random.default_rng(5).normal(size=(110, 3)), ["fraud"] * 10 + ["genuine"] * 100)
+    monkeypatch.setattr(count_ties, "load_all", lambda: {count_ties.FRAUD: rare, "Other": random_data(60, 1)})
+    count_ties.main()
+    printed = capsys.readouterr().out
+    assert "| Credit Card Fraud (enriched) | 2 |" in printed
+    assert "| Other | 2 |" in printed  # the other data sets keep their plain names
+    assert "| Credit Card Fraud | 60 |" in printed  # 10 frauds + 50 genuine rows in the table of rows used
