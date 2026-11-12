@@ -58,18 +58,21 @@ def split_impurity(left, right, measure):
     return len(left) / n * measure(left) + len(right) / n * measure(right)
 
 
-def best_split(X, codes, measure):
+def best_split(X, codes, measure, one_hot=None):
     """Try every feature and threshold, and return (feature, threshold) of the purest split.
 
     Returns None if no split is possible, because every row has the same values.
     The split is returned even if it does not make the groups purer: on a balanced
     XOR no single split gains anything, but the splits after it do.
+    one_hot is one row per example with a 1 in its class column. A tree builds it once
+    and passes it in; if it is left out it is built here.
     """
     X = np.asarray(X, dtype=float)
     codes = np.asarray(codes)
     impurity_of = MEASURES_OF_SHARES[measure]
     n = len(codes)
-    one_hot = np.eye(codes.max() + 1)[codes]  # one row per example, a 1 in its class column
+    if one_hot is None:
+        one_hot = np.eye(codes.max() + 1)[codes]
 
     best = None
     best_score = np.inf  # the first split found always counts, even if it gains nothing
@@ -146,19 +149,25 @@ class DecisionTree(Classifier):
         self.measure = MEASURES[measure]
         self.max_depth = max_depth                  # None means no limit
         self.min_samples_split = min_samples_split  # a node needs this many rows to split
+        self.unreached_splits = None  # set by prune(): splits kept because no validation row reached them
 
     def _train(self, data: Dataset) -> None:
         self.n_classes = len(data.classes)
+        self.unreached_splits = None  # a new tree has not been pruned yet
         self.root = self._new_node(data.codes)
 
-        # Nodes still to split, as (node, its rows, their labels, its depth). A list used
-        # as a stack, not recursion, so a deep tree cannot hit Python's recursion limit.
-        to_split = [(self.root, data.X, data.codes, 0)]
+        # The labels as one-hot rows (a 1 in the class column), built once for the whole tree.
+        # Each node takes its own rows from it.
+        one_hot = np.eye(self.n_classes)[data.codes]
+
+        # Nodes still to split, as (node, its rows, their labels, their one-hot rows, its depth).
+        # A list used as a stack, not recursion, so a deep tree cannot hit Python's recursion limit.
+        to_split = [(self.root, data.X, data.codes, one_hot, 0)]
         while to_split:
-            node, X, codes, depth = to_split.pop()
+            node, X, codes, rows_one_hot, depth = to_split.pop()
             if self._should_stop(codes, depth):
                 continue
-            split = best_split(X, codes, self.measure)
+            split = best_split(X, codes, self.measure, rows_one_hot)
             if split is None:  # every row is the same, or no split helps
                 continue
 
@@ -166,8 +175,8 @@ class DecisionTree(Classifier):
             goes_left = X[:, node.feature] <= node.threshold
             node.left = self._new_node(codes[goes_left])
             node.right = self._new_node(codes[~goes_left])
-            to_split.append((node.left, X[goes_left], codes[goes_left], depth + 1))
-            to_split.append((node.right, X[~goes_left], codes[~goes_left], depth + 1))
+            to_split.append((node.left, X[goes_left], codes[goes_left], rows_one_hot[goes_left], depth + 1))
+            to_split.append((node.right, X[~goes_left], codes[~goes_left], rows_one_hot[~goes_left], depth + 1))
 
     def _new_node(self, codes):
         """A leaf for these rows. Its scores are the smoothed share of each class."""
@@ -229,6 +238,7 @@ class DecisionTree(Classifier):
 
     def _prune(self, X, codes):
         """Prune from the bottom up, using a stack instead of recursion."""
+        all_X, all_codes = X, codes  # the loops below reuse the names X and codes
         # Going down: find which validation rows reach each node. A node is added to the
         # list before its children, so going through the list backwards does children first.
         reached = []  # (node, labels of the validation rows that reach it)
@@ -256,3 +266,17 @@ class DecisionTree(Classifier):
                 wrong[node] = wrong_as_leaf
             else:
                 wrong[node] = wrong_below
+
+        # How many of the splits that are left did no validation row reach? They were kept
+        # without any evidence for or against them, so the write-up can say how many there are.
+        self.unreached_splits = 0
+        to_visit = [(self.root, all_X, all_codes)]
+        while to_visit:
+            node, X, codes = to_visit.pop()
+            if node.is_leaf():
+                continue
+            if len(codes) == 0:
+                self.unreached_splits += 1
+            goes_left = X[:, node.feature] <= node.threshold
+            to_visit.append((node.left, X[goes_left], codes[goes_left]))
+            to_visit.append((node.right, X[~goes_left], codes[~goes_left]))

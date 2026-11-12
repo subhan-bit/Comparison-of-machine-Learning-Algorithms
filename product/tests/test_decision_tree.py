@@ -396,3 +396,45 @@ def test_bad_validation_sets_are_rejected():
         model.prune(Dataset([[1]], ["c"]))        # a label the tree never saw
     with pytest.raises(ValueError, match="features"):
         model.prune(Dataset([[1, 2]], ["a"]))     # wrong number of columns
+
+
+def test_best_split_can_be_given_the_class_matrix_instead_of_building_it():
+    X, codes = [[1], [2], [3], [4]], [0, 0, 1, 1]
+    one_hot = np.eye(2)[codes]  # one row per example, a 1 in its class column
+    assert best_split(X, codes, gini, one_hot=one_hot) == best_split(X, codes, gini)
+
+
+def test_the_class_matrix_is_built_once_for_the_whole_tree(monkeypatch):
+    calls = []
+    real_eye = np.eye
+
+    def counting_eye(*args, **kwargs):
+        calls.append(1)
+        return real_eye(*args, **kwargs)
+
+    monkeypatch.setattr(np, "eye", counting_eye)
+    rng = np.random.default_rng(0)
+    model = DecisionTree()
+    model.train(Dataset(rng.normal(size=(100, 2)), rng.integers(0, 2, size=100)))
+    assert model.count_leaves() > 10  # many nodes, so building it at every node would call np.eye many times
+    assert len(calls) == 1
+
+
+def test_prune_counts_the_splits_that_no_validation_row_reached():
+    # left of 6 is "b"; right of 6 splits again at 12.5, but no validation row goes there
+    train = Dataset([[1], [2], [10], [11], [12], [13]], ["b", "b", "a", "a", "a", "b"])
+    model = DecisionTree()
+    model.train(train)
+    assert model.unreached_splits is None  # prune() has not been called yet
+    model.prune(Dataset([[1], [2]], ["b", "b"]))
+    assert model.unreached_splits == 1  # the split at 12.5 was kept without any evidence
+
+    # when the validation rows reach every split, none is kept without evidence
+    model.train(Dataset([[1], [2], [3], [4]], ["a", "a", "b", "b"]))
+    model.prune(Dataset([[1], [4]], ["a", "b"]))
+    assert model.unreached_splits == 0
+
+    # a split that was cut away is not counted: here the root becomes a leaf and the right side goes with it
+    model.train(train)
+    model.prune(Dataset([[1], [2]], ["a", "a"]))
+    assert model.count_leaves() == 1 and model.unreached_splits == 0
