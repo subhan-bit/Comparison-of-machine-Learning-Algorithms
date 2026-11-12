@@ -72,7 +72,7 @@ def load_csv(path, label_column, drop_columns=(), column_names=None, whitespace=
                 numbers.append(value)
 
             X.append(numbers)
-            y.append(row[label_column])
+            y.append(row[label_column].strip())  # "M " and "M" are the same label
 
     # reshape keeps the right number of columns even when the file has no rows
     return Dataset(np.array(X, dtype=float).reshape(len(X), len(features)), y)

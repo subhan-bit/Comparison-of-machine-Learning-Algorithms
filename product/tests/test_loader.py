@@ -113,3 +113,10 @@ def test_unknown_column_names_are_rejected(tmp_path):
         load_csv(file, "colour", drop_columns=["idd"])
     with pytest.raises(TypeError):
         load_csv(file, "colour", drop_columns="id")
+
+
+def test_spaces_around_a_label_are_not_part_of_the_label(tmp_path):
+    # "M " and "M" must be one class, not two
+    data = load_text(tmp_path, "x1,colour\n1,M \n2, M\n3,M\n4,B\n")
+    assert list(data.y) == ["M", "M", "M", "B"]
+    assert data.classes.tolist() == ["B", "M"]
