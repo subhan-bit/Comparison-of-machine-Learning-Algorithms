@@ -240,6 +240,23 @@ def test_random_without_a_seed_can_differ_between_calls():
     assert answers == {"red", "blue"}
 
 
+def test_a_seeded_random_tie_break_gives_a_point_the_same_answer_in_any_batch():
+    data = Dataset([[0, 1], [0, -1]], ["a", "b"])  # a point on the x axis is exactly as far from both
+    model = KNN(k=2, tie_break="random", seed=3)
+    model.train(data)
+    alone = model.predict([[0, 0]]).tolist()
+    assert model.predict([[0, 0]] * 12).tolist() == alone * 12  # 12 copies together: the same answer each time
+    assert model.predict([[1, 0], [0, 0], [2, 0]]).tolist()[1] == alone[0]  # and between other points
+
+
+def test_a_seeded_random_tie_break_still_picks_both_classes_across_different_points():
+    data = Dataset([[0, 1], [0, -1]], ["a", "b"])
+    model = KNN(k=2, tie_break="random", seed=3)
+    model.train(data)
+    answers = model.predict([[x, 0] for x in range(40)]).tolist()  # 40 different tied points
+    assert set(answers) == {"a", "b"}
+
+
 def test_weighted_falls_back_to_nearest_when_the_weights_tie():
     # two points exactly as far from Q: their weights are equal too
     data = Dataset([[0, 1], [0, -1]], ["red", "blue"])
