@@ -151,3 +151,10 @@ def test_the_label_column_cannot_also_be_dropped(tmp_path):
     file = make_csv(tmp_path, "x1,colour\n1,red\n")
     with pytest.raises(ValueError, match="'colour' is both the label column and in drop_columns"):
         load_csv(file, "colour", drop_columns=["colour"])
+
+
+def test_the_not_a_number_error_does_not_also_show_pythons_own_error(tmp_path):
+    with pytest.raises(ValueError, match="is not a number") as error:
+        load_text(tmp_path, "x1,colour\nabc,red\n")
+    # "raise ... from None": the traceback shows only our message, not float()'s as well
+    assert error.value.__suppress_context__

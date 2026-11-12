@@ -60,3 +60,10 @@ def test_positive_label_must_be_one_of_the_labels():
         Dataset([[1], [2]], ["ham", "spam"], positive_label="fraud")
     with pytest.raises(ValueError):
         Dataset([[1], [2]], ["ham", "spam"], positive_label=1)
+
+
+def test_the_bad_table_error_does_not_also_show_numpys_own_error():
+    with pytest.raises(ValueError, match="rectangular table") as error:
+        Dataset([[1, "a"]], [0])
+    # "raise ... from None": the traceback shows only our message, not numpy's as well
+    assert error.value.__suppress_context__

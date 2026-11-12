@@ -80,7 +80,7 @@ def _read_csv(path, label_column, drop_columns, column_names, whitespace):
                         raise ValueError
                     value = float(text)
                 except ValueError:
-                    raise ValueError(f"{path} line {line}, column {name!r}: {text!r} is not a number")
+                    raise ValueError(f"{path} line {line}, column {name!r}: {text!r} is not a number") from None
                 if not math.isfinite(value):
                     raise ValueError(f"{path} line {line}, column {name!r}: {text!r} is not a finite number")
                 numbers.append(value)
