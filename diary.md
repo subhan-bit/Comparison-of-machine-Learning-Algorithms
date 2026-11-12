@@ -59,6 +59,15 @@
   - The first version of the mutation script had a bug: it emptied each file before reading it, so every copy was an empty module and the report said everything was caught. A hand-made broken copy that was not caught gave it away. A tool that checks my work needs checking too.
 - Effect on results: none. The 92 old tests still pass and valid input gives the same answers; only input that used to crash or be answered silently (NaN, infinity) now gives an error. Afterwards 317 of 338 changes are caught (the new code added 4 more to try), 2 make the tests hang, and 19 are not caught. 17 of those cannot change any answer (for example a random number landing exactly on 0).
 - Open point: the other 2 are in reduce_k. When several dots tie at the k-th distance it goes straight from all of them down to k-1 neighbours, and it can end on a class with only 1 vote out of 5. My notes say it drops one neighbour at a time. I have not decided what it should do, so I wrote no test that fixes the current behaviour.
+- Fixed the CI, set-up and declaration problems from the review (issue #18, branch feature/ci-docs) with Claude Code's help (see AI.md), in four small commits:
+  - AI.md: it only said that Claude Code audited the repository and helped with the input checks. It now lists what the AI did (the first version of most of the code, tests and notes, the fixes, the reviews and the report drafts), what I did myself and how I checked the output.
+  - CI: the lint job also checks scripts/, and the test job measures branch coverage and fails below 95% (before: line coverage, 90%). Branch coverage is 99%; the two missed branches are in the last fallback loop of knn.py.
+  - pyproject.toml: ruff has a line length of 120 and now reports longer lines (the longest is 119), and the dependencies say at least the versions pinned in requirements.txt.
+  - README: the layout lists .gitlab-ci.yml, scripts/ and data/, and the steps end with ruff check .
+- What I learnt from issue #18:
+  - A short declaration is easy to write but tells the markers little. Listing what each part of the repository came from, and what I decided myself, is more honest and easier to defend.
+  - No test can fail first for settings. I ran the exact CI commands on my machine instead, and checked that the new rule works by giving ruff a 130-character line, which it reports.
+- Effect on results: none.
 - Behind plan: the audit fixes took the time, so the evaluation framework has not started and the two early reports are still to be written.
 - Next: the other audit groups (the tie-count script and its uninformative fraud row, the remaining tree points), then the early reports and the evaluation framework.
 
