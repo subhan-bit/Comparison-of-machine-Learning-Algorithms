@@ -16,6 +16,7 @@ DATA = Path(__file__).resolve().parents[2] / "data"
 K_VALUES = range(1, 11)
 SEED = 0  # fixed, so every run gives the same numbers
 FRAUD = "Credit Card Fraud"
+GENUINE_ROWS = 3000  # how many genuine rows go with the 492 frauds
 
 
 def rng_for(name):
@@ -29,9 +30,17 @@ def names(n):
     return [f"x{i}" for i in range(1, n + 1)]
 
 
-def subsample(data, n, rng):
-    """n random rows, for the fraud data, which is too big for brute-force k-NN."""
-    rows = rng.choice(len(data), size=n, replace=False)
+def keep_all_rare_class(data, n_others, rng):
+    """Every row of the rarest class, plus n_others random rows of the other classes.
+
+    The fraud data is too big for brute-force k-NN, and only 0.17% of it is fraud. A plain random
+    subsample of 3,000 rows holds about 5 frauds, so its tie counts say nothing about fraud.
+    Keeping every fraud gives a sample with far more fraud than the real data (an enriched sample).
+    """
+    rare = np.bincount(data.codes).argmin()
+    rare_rows = np.flatnonzero(data.codes == rare)
+    other_rows = rng.choice(np.flatnonzero(data.codes != rare), size=n_others, replace=False)
+    rows = np.concatenate([rare_rows, other_rows])
     return Dataset(data.X[rows], data.y[rows])
 
 
@@ -83,7 +92,7 @@ def count_row(name, data):
     """
     rng = rng_for(name)
     if name == FRAUD:
-        data = subsample(data, 3000, rng)
+        data = keep_all_rare_class(data, GENUINE_ROWS, rng)
     train, test = standardise(*split(data, rng))
     ties = []
     for k in K_VALUES:

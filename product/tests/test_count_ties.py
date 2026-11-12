@@ -39,3 +39,13 @@ def test_the_split_keeps_the_share_of_each_class_and_uses_every_row_once():
     assert [list(train.y).count("rare"), list(train.y).count("common")] == [14, 56]  # 70% of each class
     assert [list(test.y).count("rare"), list(test.y).count("common")] == [6, 24]
     assert sorted(train.X.ravel().tolist() + test.X.ravel().tolist()) == X.ravel().tolist()
+
+
+def test_the_rare_class_keeps_every_row_and_the_other_rows_are_sampled():
+    X = np.arange(210, dtype=float).reshape(-1, 1)  # the first 10 rows are the rare class
+    data = Dataset(X, ["rare"] * 10 + ["common"] * 200)
+    sample = count_ties.keep_all_rare_class(data, 30, np.random.default_rng(0))
+    assert [list(sample.y).count("rare"), list(sample.y).count("common")] == [10, 30]
+    assert set(range(10)) <= set(sample.X.ravel().astype(int).tolist())  # every rare row is in the sample
+    again = count_ties.keep_all_rare_class(data, 30, np.random.default_rng(0))
+    assert sample.X.tolist() == again.X.tolist()  # the same generator gives the same sample
