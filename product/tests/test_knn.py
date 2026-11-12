@@ -124,6 +124,11 @@ def test_k_must_be_a_whole_number():
     assert KNN(k=3.0).k == 3  # a whole float is fine
 
 
+def test_a_huge_k_is_rejected_when_the_model_is_made():
+    with pytest.raises(ValueError, match="k is too large"):  # before: it failed later, in train()
+        KNN(k=1e300)
+
+
 def test_k4_is_a_tie_and_the_scores_show_it():
     model = KNN(k=4)
     model.train(DOTS)

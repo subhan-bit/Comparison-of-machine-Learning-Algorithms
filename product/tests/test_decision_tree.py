@@ -289,6 +289,11 @@ def test_depth_and_split_size_must_be_whole_numbers():
     assert (model.max_depth, model.min_samples_split) == (3, 4)
 
 
+def test_a_huge_max_depth_is_rejected():
+    with pytest.raises(ValueError, match="max_depth is too large"):  # before: accepted, as if there was no limit
+        DecisionTree(max_depth=1e300)
+
+
 def test_pruning_removes_a_split_that_only_fits_noise():
     # the "b" at x=3 is noise: the full tree makes extra splits just to fit it
     train = Dataset([[1], [2], [3], [4], [5]], ["a", "a", "b", "a", "a"])
