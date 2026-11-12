@@ -91,7 +91,8 @@ including its noise, so it overfits [1].
   - A split that no validation row reaches is kept, because there is no
     evidence against it. With a small validation set or a rare class this
     stops the tree being cut back too far. An empty validation set is an
-    error.
+    error. This is a deliberate choice, and after pruning `unreached_splits`
+    says how many splits were kept this way, so the results can report it.
 
 The tree is built, counted and pruned with a list of nodes still to visit,
 not with recursion, so a tree thousands of levels deep does not crash.
@@ -108,6 +109,22 @@ not with recursion, so a tree thousands of levels deep does not crash.
 - Normalising the features should make no difference to a tree, because a
   threshold only cares about order. For k-NN it changes the distances, so
   RQ3 can compare the two.
+
+## Two points to revisit when AUC exists
+- Pruning counts mistakes (accuracy), so it cuts hard when one class is rare.
+  With 0.17% fraud, a tree that says "genuine" everywhere is almost as
+  accurate as a tree that finds the frauds, so reduced-error pruning can remove
+  the splits that find them. The fraud data is where this matters most.
+- The smoothed score (count + 1) / (rows + classes) is a uniform prior: it
+  acts like one made-up row of each class in every leaf, however rare a class
+  really is. The score then depends on the size of the leaf and not only on how
+  pure it is. A pure leaf of 1 fraud scores (1 + 1) / (1 + 2) = 0.667, and so
+  does a leaf of 3 frauds and 1 genuine row: (3 + 1) / (4 + 2) = 0.667. AUC
+  only looks at the order of the scores, so this can change the AUC of a tree.
+
+Both are left as they are for now. When the evaluation framework can compute
+AUC, compare accuracy pruning with other ways of pruning, and this smoothing
+with other priors.
 
 ## Still to learn
 - How entropy and Gini compare on the real data sets.
