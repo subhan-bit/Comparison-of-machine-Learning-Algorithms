@@ -130,3 +130,10 @@ def test_only_ordinary_numbers_are_accepted(tmp_path):
     # the ordinary ways to write a number are fine, with or without spaces around them
     data = load_text(tmp_path, "x1,colour\n1e3,a\n-2.5,a\n.5,a\n+7,a\n 3 ,a\n")
     assert data.X.ravel().tolist() == [1000.0, -2.5, 0.5, 7.0, 3.0]
+
+
+def test_a_file_that_is_not_utf8_gives_a_clear_error(tmp_path):
+    file = tmp_path / "latin1.csv"
+    file.write_bytes("x1,colour\n1,café\n".encode("latin-1"))  # here the é is one byte, which is not valid UTF-8
+    with pytest.raises(ValueError, match="latin1.csv is not a UTF-8 text file"):
+        load_csv(file, "colour")

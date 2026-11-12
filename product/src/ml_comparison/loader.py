@@ -15,6 +15,13 @@ def load_csv(path, label_column, drop_columns=(), column_names=None, whitespace=
     column_names gives the names for a file with no header row (like the UCI files).
     whitespace=True reads values separated by spaces instead of commas (like German Credit).
     """
+    try:
+        return _read_csv(path, label_column, drop_columns, column_names, whitespace)
+    except UnicodeDecodeError:  # for example a file saved as Latin-1 or Excel's "CSV", which are not UTF-8
+        raise ValueError(f"{path} is not a UTF-8 text file") from None
+
+
+def _read_csv(path, label_column, drop_columns, column_names, whitespace):
     if isinstance(drop_columns, str):
         raise TypeError("drop_columns must be a list of column names, not a string")
 
