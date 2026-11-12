@@ -111,7 +111,8 @@ def main():
     print("| Data set | Classes | " + " | ".join(f"k={k}" for k in K_VALUES) + " |")
     print("|---|---|" + "---|" * len(K_VALUES))
     for name, row in results.items():
-        print(f"| {name} | {row['classes']} | " + " | ".join(f"{t:.1f}" for t in row["ties"]) + " |")
+        shown = f"{name} (enriched)" if name == FRAUD else name  # the fraud rows are not the real class balance
+        print(f"| {shown} | {row['classes']} | " + " | ".join(f"{t:.1f}" for t in row["ties"]) + " |")
 
     print(f"\nRows used. The fraud row is an enriched sample: every fraud plus {GENUINE_ROWS:,} genuine rows.\n")
     print("| Data set | Rows | Training rows | Test rows | Test rows per class |")

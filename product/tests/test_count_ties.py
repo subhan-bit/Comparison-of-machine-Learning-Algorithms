@@ -58,3 +58,14 @@ def test_main_prints_the_tie_table_and_the_rows_used(monkeypatch, capsys):
     assert "| Data set | Classes | k=1 |" in printed
     assert "| Data set | Rows | Training rows | Test rows | Test rows per class |" in printed
     assert "| B | 80 |" in printed  # B has 80 rows, in the table of rows used
+
+
+def test_the_fraud_row_is_labelled_as_an_enriched_sample(monkeypatch, capsys):
+    monkeypatch.setattr(count_ties, "GENUINE_ROWS", 50)  # the real script uses 3,000
+    rare = Dataset(np.random.default_rng(5).normal(size=(110, 3)), ["fraud"] * 10 + ["genuine"] * 100)
+    monkeypatch.setattr(count_ties, "load_all", lambda: {count_ties.FRAUD: rare, "Other": random_data(60, 1)})
+    count_ties.main()
+    printed = capsys.readouterr().out
+    assert "| Credit Card Fraud (enriched) | 2 |" in printed
+    assert "| Other | 2 |" in printed  # the other data sets keep their plain names
+    assert "| Credit Card Fraud | 60 |" in printed  # 10 frauds + 50 genuine rows in the table of rows used
