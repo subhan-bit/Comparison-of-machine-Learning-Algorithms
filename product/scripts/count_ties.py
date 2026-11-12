@@ -99,16 +99,25 @@ def count_row(name, data):
         model = KNN(k=k)
         model.train(train)
         ties.append(100 * has_tie(model.predict_scores(test.X)).mean())
-    return {"classes": len(data.classes), "ties": ties}
+    per_class = zip(test.classes.tolist(), np.bincount(test.codes).tolist(), strict=True)
+    return {"classes": len(data.classes), "rows": len(data), "train": len(train), "test": len(test),
+            "test_per_class": ", ".join(f"{label}: {n}" for label, n in per_class), "ties": ties}
 
 
 def main():
+    results = {name: count_row(name, data) for name, data in load_all().items()}
+
     print("% of test points where the k-NN vote is a tie\n")
     print("| Data set | Classes | " + " | ".join(f"k={k}" for k in K_VALUES) + " |")
     print("|---|---|" + "---|" * len(K_VALUES))
-    for name, data in load_all().items():
-        row = count_row(name, data)
+    for name, row in results.items():
         print(f"| {name} | {row['classes']} | " + " | ".join(f"{t:.1f}" for t in row["ties"]) + " |")
+
+    print(f"\nRows used. The fraud row is an enriched sample: every fraud plus {GENUINE_ROWS:,} genuine rows.\n")
+    print("| Data set | Rows | Training rows | Test rows | Test rows per class |")
+    print("|---|---|---|---|---|")
+    for name, row in results.items():
+        print(f"| {name} | {row['rows']:,} | {row['train']:,} | {row['test']:,} | {row['test_per_class']} |")
 
 
 if __name__ == "__main__":

@@ -49,3 +49,12 @@ def test_the_rare_class_keeps_every_row_and_the_other_rows_are_sampled():
     assert set(range(10)) <= set(sample.X.ravel().astype(int).tolist())  # every rare row is in the sample
     again = count_ties.keep_all_rare_class(data, 30, np.random.default_rng(0))
     assert sample.X.tolist() == again.X.tolist()  # the same generator gives the same sample
+
+
+def test_main_prints_the_tie_table_and_the_rows_used(monkeypatch, capsys):
+    monkeypatch.setattr(count_ties, "load_all", lambda: {"A": random_data(60, 1), "B": random_data(80, 2)})
+    count_ties.main()
+    printed = capsys.readouterr().out
+    assert "| Data set | Classes | k=1 |" in printed
+    assert "| Data set | Rows | Training rows | Test rows | Test rows per class |" in printed
+    assert "| B | 80 |" in printed  # B has 80 rows, in the table of rows used
