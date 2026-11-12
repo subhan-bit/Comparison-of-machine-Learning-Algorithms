@@ -149,9 +149,11 @@ class DecisionTree(Classifier):
         self.measure = MEASURES[measure]
         self.max_depth = max_depth                  # None means no limit
         self.min_samples_split = min_samples_split  # a node needs this many rows to split
+        self.unreached_splits = None  # set by prune(): splits kept because no validation row reached them
 
     def _train(self, data: Dataset) -> None:
         self.n_classes = len(data.classes)
+        self.unreached_splits = None  # a new tree has not been pruned yet
         self.root = self._new_node(data.codes)
 
         # The labels as one-hot rows (a 1 in the class column), built once for the whole tree.
@@ -236,6 +238,7 @@ class DecisionTree(Classifier):
 
     def _prune(self, X, codes):
         """Prune from the bottom up, using a stack instead of recursion."""
+        all_X, all_codes = X, codes  # the loops below reuse the names X and codes
         # Going down: find which validation rows reach each node. A node is added to the
         # list before its children, so going through the list backwards does children first.
         reached = []  # (node, labels of the validation rows that reach it)
@@ -263,3 +266,17 @@ class DecisionTree(Classifier):
                 wrong[node] = wrong_as_leaf
             else:
                 wrong[node] = wrong_below
+
+        # How many of the splits that are left did no validation row reach? They were kept
+        # without any evidence for or against them, so the write-up can say how many there are.
+        self.unreached_splits = 0
+        to_visit = [(self.root, all_X, all_codes)]
+        while to_visit:
+            node, X, codes = to_visit.pop()
+            if node.is_leaf():
+                continue
+            if len(codes) == 0:
+                self.unreached_splits += 1
+            goes_left = X[:, node.feature] <= node.threshold
+            to_visit.append((node.left, X[goes_left], codes[goes_left]))
+            to_visit.append((node.right, X[~goes_left], codes[~goes_left]))
