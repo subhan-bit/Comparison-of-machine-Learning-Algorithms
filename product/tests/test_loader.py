@@ -145,3 +145,9 @@ def test_a_missing_column_error_names_the_file_and_the_column(tmp_path):
         load_csv(file, "nope")
     with pytest.raises(KeyError, match="data.csv has no column 'idd' to drop .*'x1'"):
         load_csv(file, "colour", drop_columns=["idd"])
+
+
+def test_the_label_column_cannot_also_be_dropped(tmp_path):
+    file = make_csv(tmp_path, "x1,colour\n1,red\n")
+    with pytest.raises(ValueError, match="'colour' is both the label column and in drop_columns"):
+        load_csv(file, "colour", drop_columns=["colour"])

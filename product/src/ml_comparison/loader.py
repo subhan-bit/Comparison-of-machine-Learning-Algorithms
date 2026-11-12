@@ -24,6 +24,8 @@ def load_csv(path, label_column, drop_columns=(), column_names=None, whitespace=
 def _read_csv(path, label_column, drop_columns, column_names, whitespace):
     if isinstance(drop_columns, str):
         raise TypeError("drop_columns must be a list of column names, not a string")
+    if label_column in drop_columns:
+        raise ValueError(f"{label_column!r} is both the label column and in drop_columns")
 
     # utf-8-sig removes the hidden "byte order mark" some files start with,
     # otherwise it gets stuck to the first column name
