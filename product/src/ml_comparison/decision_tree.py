@@ -168,7 +168,7 @@ class DecisionTree(Classifier):
             if self._should_stop(codes, depth):
                 continue
             split = best_split(X, codes, self.measure, rows_one_hot)
-            if split is None:  # every row is the same, or no split helps
+            if split is None:  # every row has the same values, so there is nothing to split on
                 continue
 
             node.feature, node.threshold = split
