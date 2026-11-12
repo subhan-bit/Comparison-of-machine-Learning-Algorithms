@@ -68,6 +68,20 @@
   - A short declaration is easy to write but tells the markers little. Listing what each part of the repository came from, and what I decided myself, is more honest and easier to defend.
   - No test can fail first for settings. I ran the exact CI commands on my machine instead, and checked that the new rule works by giving ruff a 130-character line, which it reports.
 - Effect on results: none.
+- Cleaned up the loader and a few other small things from the review (issue #19, branch feature/loader-cleanups) with Claude Code's help (see AI.md), in nine small commits, writing a failing test first wherever the behaviour changes:
+  - load_csv strips the spaces around labels, so "M " and "M" are one class. Before, they were two classes.
+  - load_csv accepts only ordinary numbers. Python's float() also takes "1_0" (as 10) and digits from other scripts, such as Arabic-Indic ones.
+  - A file that is not UTF-8 now gives "<file> is not a UTF-8 text file" instead of Python's "'utf-8' codec can't decode byte 0xe9".
+  - A missing column error names the file, the column and the columns the file has, and a label column that is also in drop_columns is rejected.
+  - raise ... from None where an error is re-raised inside an except (dataset.py, loader.py), so the traceback shows only my message.
+  - zip(..., strict=True) in knn.py. Ruff now also checks raise-from (B904) and zip (B905), so these rules guard the new code as well.
+  - make_xor works out its labels for all points at once and not in a loop. The data is the same: I compared 32 cases with the output of the old code, values and types.
+  - A comment in pyproject.toml saying that matplotlib is for the ROC plots (nothing imports it yet).
+- What I learnt from issue #19:
+  - A change that adds no behaviour cannot fail a test first. For the zip I switched on the ruff rule instead, which failed before the fix and passes after it. For make_xor I wrote a test that compares the new labels with the old loop, and ran the old and new code side by side.
+  - Small checks matter when the data is real: before and after the stricter number rule I ran scripts/count_ties.py, which loads all six real data sets, and the tie table came out identical.
+- Effect on results: none. The tie table is the same and the fraud file loads in about the same time (2.3 seconds).
+- Corrected four statements in this diary that were no longer true: the branch name for issue #11, the sentence about the Word report, the Python version in the README entry, and the CI image check.
 - Behind plan: the audit fixes took the time, so the evaluation framework has not started and the two early reports are still to be written.
 - Next: the other audit groups (the tie-count script and its uninformative fraud row, the remaining tree points), then the early reports and the evaluation framework.
 
