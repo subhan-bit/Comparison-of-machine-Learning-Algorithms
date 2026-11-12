@@ -32,15 +32,18 @@ See `diary.md` for the weekly log.
 
 ## Repository layout
 ```
+.gitlab-ci.yml  CI pipeline: build, lint (ruff) and test (pytest) stages
+AI.md        declaration of AI tool use
+diary.md     weekly progress log
 documents/   project plan and research notes
   knn/       notes on k-NN and tie-breaking
   decision_trees/  notes on decision trees, impurity and pruning
   research/  notes on data, class scores and ROC curves
 product/     Python source code and tests
+  scripts/             count_ties.py: how often the k-NN vote ends in a tie
   src/ml_comparison/   the package
   tests/               pytest tests, one file per module
-AI.md        declaration of AI tool use
-diary.md     weekly progress log
+data/        the data sets (downloaded by you, not in the repository)
 ```
 
 ## Getting started
@@ -60,7 +63,9 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 pip install -e .
 pytest
+ruff check .
 ```
+`pytest` runs the tests and `ruff check .` checks the style; both should report no problems.
 Inside the environment, `python --version` should show the same version.
 
 ## Data
