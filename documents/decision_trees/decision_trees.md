@@ -41,8 +41,9 @@ stopping rules below and by pruning. A version of the code that stopped when
 no split gained did badly on this: on make_xor(400, seed=0) misclassification
 error stopped at 59.2% training accuracy, while Gini and entropy reached
 100%. That would have made the stopping rule look like part of the measure
-when comparing them (RQ2). Now all three measures solve it, and they differ
-only in which split they choose.
+when comparing them (RQ2). Now all three measures solve it when the tree has
+no depth limit. With a depth limit they do not (see "Ties between equal
+splits", below).
 
 "Pure" means most rows in a group have the same label. With p_c the share of
 class c in a group, there are three common ways to measure impurity [2]:
@@ -51,6 +52,35 @@ class c in a group, there are three common ways to measure impurity [2]:
 - Misclassification error: 1 - the largest p_c
 All three are 0 for a pure group. A split is scored by the impurity of each
 group, weighted by how many rows it has.
+
+## Ties between equal splits, and what it means for RQ2
+Allowing splits that gain nothing has a side effect for misclassification
+error. It only counts the biggest class, so many different splits get the
+same score. In a full tree on two overlapping classes (600 rows), more than
+one split tied for the best score at 83% of the nodes with misclassification
+error, against 25% with Gini and 26% with entropy. The first one found wins
+(the lowest feature, then the lowest threshold), which is not always a good
+split. Two results:
+- Without a limit, that tree had about 160 leaves with Gini, 155 with entropy
+  and 485 with misclassification error, with about the same test accuracy
+  (64 to 65%).
+- With a depth limit the XOR problem comes back. On make_xor(400, seed=0),
+  Gini and entropy reach 100% accuracy on the training data at max_depth 2, 3
+  and 4, but misclassification error only 58 to 59%. Its best first split
+  scores 0.4350 (it peels off 13 of the 400 rows at the edge) and the best
+  balanced split scores 0.4375, so it takes the edge split, and the depth
+  limit stops the tree before it reaches the useful splits.
+
+So the three measures are on equal terms only when the tree has no depth
+limit. For RQ2:
+- Compare tree sizes after pruning, not before.
+- Say in the write-up how ties between equal splits are broken, and that
+  misclassification error is weak under a depth limit.
+- Pruning keeps every split that no validation row reaches, so many of the
+  extra splits can survive. Report `unreached_splits` (see "Stopping and
+  pruning").
+Breaking ties by the most balanced split instead of the first one found is an
+idea I have not tried.
 
 ## Example
 10 dots: 6 red, 4 blue. Before splitting:
