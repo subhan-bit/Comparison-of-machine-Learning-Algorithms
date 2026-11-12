@@ -23,7 +23,7 @@ def test_blobs_points_are_near_their_centre():
 def test_xor_label_is_1_when_x_and_y_have_the_same_sign():
     data = make_xor(100, seed=1)
     assert data.X.shape == (100, 2)
-    for (x, y), label in zip(data.X, data.y):
+    for (x, y), label in zip(data.X, data.y, strict=True):
         same_sign = (x > 0) == (y > 0)
         assert label == (1 if same_sign else 0)
 

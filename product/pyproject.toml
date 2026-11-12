@@ -16,4 +16,6 @@ where = ["src"]
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "E501"]  # ruff's default rules, plus lines longer than 120
+# ruff's default rules, plus lines longer than 120 (E501), raise without "from" inside an
+# except (B904) and zip without strict= (B905)
+select = ["E4", "E7", "E9", "F", "E501", "B904", "B905"]
