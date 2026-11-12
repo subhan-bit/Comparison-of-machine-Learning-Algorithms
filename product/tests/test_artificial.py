@@ -23,9 +23,20 @@ def test_blobs_points_are_near_their_centre():
 def test_xor_label_is_1_when_x_and_y_have_the_same_sign():
     data = make_xor(100, seed=1)
     assert data.X.shape == (100, 2)
-    for (x, y), label in zip(data.X, data.y):
+    for (x, y), label in zip(data.X, data.y, strict=True):
         same_sign = (x > 0) == (y > 0)
         assert label == (1 if same_sign else 0)
+
+
+def test_xor_labels_match_a_plain_loop_for_many_seeds():
+    # the labels are worked out for all points at once, so check them against the plain loop
+    for seed in range(10):
+        data = make_xor(200, seed=seed)
+        by_loop = []
+        for x_value, y_value in data.X:
+            by_loop.append(1 if (x_value > 0) == (y_value > 0) else 0)
+        assert data.y.tolist() == by_loop, seed
+        assert data.X.min() >= -1 and data.X.max() <= 1
 
 
 def test_circles_are_at_radius_1_and_3():

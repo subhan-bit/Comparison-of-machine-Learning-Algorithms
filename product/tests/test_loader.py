@@ -113,3 +113,48 @@ def test_unknown_column_names_are_rejected(tmp_path):
         load_csv(file, "colour", drop_columns=["idd"])
     with pytest.raises(TypeError):
         load_csv(file, "colour", drop_columns="id")
+
+
+def test_spaces_around_a_label_are_not_part_of_the_label(tmp_path):
+    # "M " and "M" must be one class, not two
+    data = load_text(tmp_path, "x1,colour\n1,M \n2, M\n3,M\n4,B\n")
+    assert list(data.y) == ["M", "M", "M", "B"]
+    assert data.classes.tolist() == ["B", "M"]
+
+
+def test_only_ordinary_numbers_are_accepted(tmp_path):
+    # float() also takes "1_0" (as 10) and digits from other scripts, which a data file should not have
+    for bad in ["1_0", "١٢٣", "１２"]:  # the last two are Arabic-Indic and fullwidth digits
+        with pytest.raises(ValueError, match="line 2, column 'x1'.*is not a number"):
+            load_text(tmp_path, f"x1,colour\n{bad},red\n")
+    # the ordinary ways to write a number are fine, with or without spaces around them
+    data = load_text(tmp_path, "x1,colour\n1e3,a\n-2.5,a\n.5,a\n+7,a\n 3 ,a\n")
+    assert data.X.ravel().tolist() == [1000.0, -2.5, 0.5, 7.0, 3.0]
+
+
+def test_a_file_that_is_not_utf8_gives_a_clear_error(tmp_path):
+    file = tmp_path / "latin1.csv"
+    file.write_bytes("x1,colour\n1,café\n".encode("latin-1"))  # here the é is one byte, which is not valid UTF-8
+    with pytest.raises(ValueError, match="latin1.csv is not a UTF-8 text file"):
+        load_csv(file, "colour")
+
+
+def test_a_missing_column_error_names_the_file_and_the_column(tmp_path):
+    file = make_csv(tmp_path, "id,x1,colour\n1,1,red\n")
+    with pytest.raises(KeyError, match="data.csv has no label column 'nope' .*'x1'"):
+        load_csv(file, "nope")
+    with pytest.raises(KeyError, match="data.csv has no column 'idd' to drop .*'x1'"):
+        load_csv(file, "colour", drop_columns=["idd"])
+
+
+def test_the_label_column_cannot_also_be_dropped(tmp_path):
+    file = make_csv(tmp_path, "x1,colour\n1,red\n")
+    with pytest.raises(ValueError, match="'colour' is both the label column and in drop_columns"):
+        load_csv(file, "colour", drop_columns=["colour"])
+
+
+def test_the_not_a_number_error_does_not_also_show_pythons_own_error(tmp_path):
+    with pytest.raises(ValueError, match="is not a number") as error:
+        load_text(tmp_path, "x1,colour\nabc,red\n")
+    # "raise ... from None": the traceback shows only our message, not float()'s as well
+    assert error.value.__suppress_context__

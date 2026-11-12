@@ -15,7 +15,7 @@
   - Two splits that are equal in theory can differ in the 16th decimal place, and the old code then picked the later one by accident. I made scores within 1e-12 count as equal and kept the first, as my notes say, and checked the fast search against the slow one on 900 random cases.
   - I did the speed fix before the recursion fix, because a deep-tree test took too long to run with the slow search. Fixing things in the order that keeps the tests fast saved time.
 - Effect on my results: one number in the report changes (blobs with misclassification error now has 4 leaves, not 5; the accuracy is still 100%). The pruning result (85 leaves down to 2, 81.0% up to 99.5%) and the other table values are the same. k-NN and the tie counts are not affected.
-- A third audit (11 November) found two High problems in my own fixes from issue #9. I fixed them in issue #11 (branch feature/tree-hang-xor) with Claude Code's help (see AI.md), writing a failing test first, in two commits:
+- A third audit (11 November) found two High problems in my own fixes from issue #9. I fixed them in issue #11 (branch feature/tree-errors) with Claude Code's help (see AI.md), writing a failing test first, in two commits:
   - Hang: two feature values one float step apart made train() loop forever. The midpoint rounds up to the upper value, so every row goes left, the left child equals its parent and the same split is chosen again. I reproduced it (still running after 4 seconds). The threshold is now lower + (upper - lower) / 2, and if that still rounds up to the upper value the lower value is used. Tests cover adjacent floats and huge values (1e308, which overflowed to infinity).
   - XOR: my rule "split only when the impurity drops" stopped a balanced XOR at the root for all three measures (50% accuracy). On make_xor(400, seed=0), misclassification error stopped at 59.2% training accuracy while Gini and entropy reached 100%, so the stopping rule would have made RQ2 look like a difference between the measures. I removed the rule: a node that is not pure is split anyway, and growth is stopped by purity, max_depth, min_samples_split and pruning. All three measures now reach 100% on both XOR cases.
 - What I learnt from issue #11:
@@ -30,7 +30,7 @@
 - What I learnt from issue #12:
   - My own worked example depended on row order. E at (4,5) was exactly as far from Q as D, so the "2 red, 2 blue tie at k=4" only happened because the old code dropped E. I only noticed because the new rule broke five of my tests. I moved E to (4,6): every answer in the example stayed the same and k=4 is now a real tie. This is the same kind of hidden default as the alphabetical order in Week 3.
   - A new rule can have side effects on a claim I made. With tied distances more than k points vote, so with two classes an odd k can tie after all. It did on Spambase (0.1 to 0.4% at odd k), and the notes now say so.
-- Effect on results: only the Spambase row of the tie table moves (12.2 to 11.8 at k=2, 6.2 to 5.9 at k=4, 4.3 to 3.9 at k=6); the other data sets give the same counts. The Word report still has the old table and the old example point, and will be updated after issue #15 regenerates the table.
+- Effect on results: only the Spambase row of the tie table moves (12.2 to 11.8 at k=2, 6.2 to 5.9 at k=4, 4.3 to 3.9 at k=6); the other data sets give the same counts. The Word report has since been updated with the new Spambase row and the new example point.
 - Fixed the data-loading problems from the audit (issue #13, branch feature/data-checks) with Claude Code's help (see AI.md), writing a failing test first, in three code commits:
   - load_csv rejects a header with repeated column names. Before, the second column silently replaced the first, so a feature just disappeared.
   - Dataset gives a clear "X must be a rectangular table of numbers" error for a dict, an object, a complex number or a set. Before, Dataset([{}], [0]) gave a raw TypeError.
@@ -41,12 +41,12 @@
 - Effect on results: none. The data sets and the tie counts are unchanged.
 - Fixed the set-up problems from the audit (issue #14, branch feature/setup-fixes) with Claude Code's help (see AI.md), in three small commits:
   - make_xor: n is the total number of points, while make_blobs and make_circles make n per class (2n). I documented this in the docstrings and pinned the sizes with a test, and left the data unchanged. Making the sizes match would have changed every XOR number in my report.
-  - README: it now starts with a python3 --version check and says what to do if the version is older than 3.11 (for example python3.12 -m venv .venv).
+  - README: it now starts with a python3 --version check and says what to do if the version is older than the required one (for example python3.12 -m venv .venv).
   - CI: .gitlab-ci.yml has image: python:3.12, so the pipeline runs on a fixed Python and not whatever the runner has.
 - What I learnt from issue #14:
   - I followed my own README with the macOS system Python (3.9.6) in a clean copy, and it failed with "No matching distribution found for numpy==2.5.3". That message never mentions the Python version, so a basic set-up problem looks like a package problem. Following the instructions on a clean copy, on an older Python, found it. Reading the README would not have.
   - Some fixes are documentation, not code, and no test can fail first for them. I wrote a test that pins the behaviour instead, and said so.
-- Effect on results: none. Not yet checked: the CI image on the university runner. I will look at the first lines of the pipeline log (it should say Python 3.12) and remove the line if the image cannot be pulled.
+- Effect on results: none. Checked later: the pipelines on the university runner pass with image python:3.12 (for example the one for issue #18), so the image can be pulled.
 - Asked Claude Code to review the whole project (11 November; the PDF report is kept outside the repository). Besides reading the code, it tested my tests: a script made 334 copies of the source with one change each (an operator, a number or a condition) and ran all the tests on every copy. 285 changes were caught, 48 were not and 1 made the tests hang. Most of the 48 were behaviour that no test checked. Its edge-case checks also found two real bugs in predict. I fixed them in issue #17 (branch feature/predict-checks) with Claude Code's help (see AI.md), writing a failing test first for the two bugs, in six commits:
   - predict rejects NaN and infinity, as the training data already did. Before, k-NN crashed with an IndexError on NaN, and k-NN with infinity and the tree with either gave an answer without a word.
   - The tree can classify a query with no rows. Before it raised "scores must have shape (0, 2), got (0,)", while k-NN already returned an empty answer.
@@ -68,6 +68,20 @@
   - A short declaration is easy to write but tells the markers little. Listing what each part of the repository came from, and what I decided myself, is more honest and easier to defend.
   - No test can fail first for settings. I ran the exact CI commands on my machine instead, and checked that the new rule works by giving ruff a 130-character line, which it reports.
 - Effect on results: none.
+- Cleaned up the loader and a few other small things from the review (issue #19, branch feature/loader-cleanups) with Claude Code's help (see AI.md), in nine small commits, writing a failing test first wherever the behaviour changes:
+  - load_csv strips the spaces around labels, so "M " and "M" are one class. Before, they were two classes.
+  - load_csv accepts only ordinary numbers. Python's float() also takes "1_0" (as 10) and digits from other scripts, such as Arabic-Indic ones.
+  - A file that is not UTF-8 now gives "<file> is not a UTF-8 text file" instead of Python's "'utf-8' codec can't decode byte 0xe9".
+  - A missing column error names the file, the column and the columns the file has, and a label column that is also in drop_columns is rejected.
+  - raise ... from None where an error is re-raised inside an except (dataset.py, loader.py), so the traceback shows only my message.
+  - zip(..., strict=True) in knn.py. Ruff now also checks raise-from (B904) and zip (B905), so these rules guard the new code as well.
+  - make_xor works out its labels for all points at once and not in a loop. The data is the same: I compared 32 cases with the output of the old code, values and types.
+  - A comment in pyproject.toml saying that matplotlib is for the ROC plots (nothing imports it yet).
+- What I learnt from issue #19:
+  - A change that adds no behaviour cannot fail a test first. For the zip I switched on the ruff rule instead, which failed before the fix and passes after it. For make_xor I wrote a test that compares the new labels with the old loop, and ran the old and new code side by side.
+  - Small checks matter when the data is real: before and after the stricter number rule I ran scripts/count_ties.py, which loads all six real data sets, and the tie table came out identical.
+- Effect on results: none. The tie table is the same and the fraud file loads in about the same time (2.3 seconds).
+- Corrected four statements in this diary that were no longer true: the branch name for issue #11, the sentence about the Word report, the Python version in the README entry, and the CI image check.
 - Behind plan: the audit fixes took the time, so the evaluation framework has not started and the two early reports are still to be written.
 - Next: the other audit groups (the tie-count script and its uninformative fraud row, the remaining tree points), then the early reports and the evaluation framework.
 

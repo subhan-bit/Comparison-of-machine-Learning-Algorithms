@@ -15,8 +15,17 @@ def load_csv(path, label_column, drop_columns=(), column_names=None, whitespace=
     column_names gives the names for a file with no header row (like the UCI files).
     whitespace=True reads values separated by spaces instead of commas (like German Credit).
     """
+    try:
+        return _read_csv(path, label_column, drop_columns, column_names, whitespace)
+    except UnicodeDecodeError:  # for example a file saved as Latin-1 or Excel's "CSV", which are not UTF-8
+        raise ValueError(f"{path} is not a UTF-8 text file") from None
+
+
+def _read_csv(path, label_column, drop_columns, column_names, whitespace):
     if isinstance(drop_columns, str):
         raise TypeError("drop_columns must be a list of column names, not a string")
+    if label_column in drop_columns:
+        raise ValueError(f"{label_column!r} is both the label column and in drop_columns")
 
     # utf-8-sig removes the hidden "byte order mark" some files start with,
     # otherwise it gets stuck to the first column name
@@ -37,9 +46,11 @@ def load_csv(path, label_column, drop_columns=(), column_names=None, whitespace=
         if repeated:
             raise ValueError(f"{path} has repeated column names: {repeated}")
 
-        for name in [label_column, *drop_columns]:
+        if label_column not in headers:
+            raise KeyError(f"{path} has no label column {label_column!r} (its columns are {named})")
+        for name in drop_columns:
             if name not in headers:
-                raise KeyError(name)
+                raise KeyError(f"{path} has no column {name!r} to drop (its columns are {named})")
 
         # Every other named column is a feature (blank header names are skipped)
         features = [h for h in headers if h and h != label_column and h not in drop_columns]
@@ -64,15 +75,18 @@ def load_csv(path, label_column, drop_columns=(), column_names=None, whitespace=
             for name in features:
                 text = row[name]
                 try:
+                    # float() also takes "1_0" (as 10) and digits from other scripts, so rule those out first
+                    if "_" in text or not text.isascii():
+                        raise ValueError
                     value = float(text)
                 except ValueError:
-                    raise ValueError(f"{path} line {line}, column {name!r}: {text!r} is not a number")
+                    raise ValueError(f"{path} line {line}, column {name!r}: {text!r} is not a number") from None
                 if not math.isfinite(value):
                     raise ValueError(f"{path} line {line}, column {name!r}: {text!r} is not a finite number")
                 numbers.append(value)
 
             X.append(numbers)
-            y.append(row[label_column])
+            y.append(row[label_column].strip())  # "M " and "M" are the same label
 
     # reshape keeps the right number of columns even when the file has no rows
     return Dataset(np.array(X, dtype=float).reshape(len(X), len(features)), y)

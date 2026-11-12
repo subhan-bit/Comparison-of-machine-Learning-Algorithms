@@ -7,7 +7,11 @@ name = "ml-comparison"
 version = "0.1.0"
 description = "From-scratch k-NN, decision tree and SVM comparison"
 requires-python = ">=3.12"
-dependencies = ["numpy>=2.5.3", "matplotlib>=3.11.2"]  # at least the versions pinned in requirements.txt
+# at least the versions pinned in requirements.txt
+dependencies = [
+    "numpy>=2.5.3",
+    "matplotlib>=3.11.2",  # for the ROC plots; nothing imports it yet
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -16,4 +20,6 @@ where = ["src"]
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "E501"]  # ruff's default rules, plus lines longer than 120
+# ruff's default rules, plus lines longer than 120 (E501), raise without "from" inside an
+# except (B904) and zip without strict= (B905)
+select = ["E4", "E7", "E9", "F", "E501", "B904", "B905"]

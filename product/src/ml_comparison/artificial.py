@@ -31,13 +31,8 @@ def make_xor(n, seed):
     # n random points, with x and y each anywhere between -1 and 1
     X = rng.uniform(-1, 1, size=(n, 2))
 
-    # same sign means both positive or both negative
-    y = []
-    for x_value, y_value in X:
-        if (x_value > 0) == (y_value > 0):
-            y.append(1)
-        else:
-            y.append(0)
+    # same sign means both positive or both negative: 1 for those points, 0 for the others
+    y = ((X[:, 0] > 0) == (X[:, 1] > 0)).astype(int)
     return Dataset(X, y)
 
 

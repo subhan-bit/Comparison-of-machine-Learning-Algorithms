@@ -115,7 +115,7 @@ class KNN(Classifier):
                 weights = (d_last - distances) / (d_last - d_first)
             # add up the weights for each tied class and keep the biggest
             totals = [weights[codes == c].sum() for c in tied]
-            best = [c for c, total in zip(tied, totals) if same(total, max(totals))]
+            best = [c for c, total in zip(tied, totals, strict=True) if same(total, max(totals))]
             if len(best) == 1:
                 return best[0]
             tied = best  # the weights tie too, so fall back to the nearest label

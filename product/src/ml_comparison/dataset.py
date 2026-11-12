@@ -9,7 +9,7 @@ class Dataset:
         try:
             X = np.array(X, dtype=float)
         except (ValueError, TypeError):  # text or uneven rows, or something that is not a number
-            raise ValueError("X must be a rectangular table of numbers")
+            raise ValueError("X must be a rectangular table of numbers") from None
 
         # Dataset([], []) gives a flat empty array, so make it 0 rows by 0 columns
         if X.ndim == 1 and len(X) == 0:
