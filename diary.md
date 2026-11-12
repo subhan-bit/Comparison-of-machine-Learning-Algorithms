@@ -1,145 +1,36 @@
 # Diary
 
 ## Week 7
-- Received an audit of the repository (3 November) that listed 19 problems: 10 older ones that were still open and 9 new ones. Its method section says it used AI reviewers (see AI.md). I split the problems into four groups and started with the decision tree, because the evaluation framework and the ROC curves will depend on it (issue #9, branch feature/tree-fixes).
-- Fixed the decision tree with Claude Code's help (see AI.md), writing a failing test first for each change, in seven small commits:
-  - Settings: max_depth and min_samples_split must be whole numbers, with a clear error. Ruff said to use TypeError for a wrong type, which also removed the raw TypeError the audit found.
-  - Pruning: an empty validation set is now an error, and a split that no validation row reaches is kept. Before, such a split was always cut, because it got 0 wrong either way and a tie goes to the leaf.
-  - Splitting: the tree now splits only when the impurity drops. Before, misclassification error on the labels 0, 0, 1, 0, 0 made 4 leaves although no split helped. (This rule was wrong for XOR and was removed again in issue #11, see below.)
-  - Scores: leaves now give smoothed shares, (count + 1) / (rows + classes). Before, a full tree gave only 0 and 1, which would make ROC curves useless. It never changes which class wins, so the predictions are the same.
-  - Speed: the threshold search sorts each feature once and scores all thresholds from running class counts. A full tree on 2,000 rows with 10 features went from about 6 seconds to 0.09 seconds, so the fraud data may not need a subsample for the tree.
-  - Recursion: building, counting and pruning use a list of nodes still to visit instead of recursion, so 2,000 alternating rows no longer give a RecursionError.
-  - Notes: updated decision_trees.md and added a docstring.
-- What I learnt:
-  - The tree was right on small data and the problems only showed up at scale. The artificial data sets I tested on were too small to show slow search, deep trees or all-0-or-1 scores. Next time I will test a new algorithm on one large or awkward case as well.
-  - Two splits that are equal in theory can differ in the 16th decimal place, and the old code then picked the later one by accident. I made scores within 1e-12 count as equal and kept the first, as my notes say, and checked the fast search against the slow one on 900 random cases.
-  - I did the speed fix before the recursion fix, because a deep-tree test took too long to run with the slow search. Fixing things in the order that keeps the tests fast saved time.
-- Effect on my results: one number in the report changes (blobs with misclassification error now has 4 leaves, not 5; the accuracy is still 100%). The pruning result (85 leaves down to 2, 81.0% up to 99.5%) and the other table values are the same. k-NN and the tie counts are not affected.
-- A third audit (11 November) found two High problems in my own fixes from issue #9. I fixed them in issue #11 (branch feature/tree-errors) with Claude Code's help (see AI.md), writing a failing test first, in two commits:
-  - Hang: two feature values one float step apart made train() loop forever. The midpoint rounds up to the upper value, so every row goes left, the left child equals its parent and the same split is chosen again. I reproduced it (still running after 4 seconds). The threshold is now lower + (upper - lower) / 2, and if that still rounds up to the upper value the lower value is used. Tests cover adjacent floats and huge values (1e308, which overflowed to infinity).
-  - XOR: my rule "split only when the impurity drops" stopped a balanced XOR at the root for all three measures (50% accuracy). On make_xor(400, seed=0), misclassification error stopped at 59.2% training accuracy while Gini and entropy reached 100%, so the stopping rule would have made RQ2 look like a difference between the measures. I removed the rule: a node that is not pure is split anyway, and growth is stopped by purity, max_depth, min_samples_split and pruning. All three measures now reach 100% on both XOR cases.
-- What I learnt from issue #11:
-  - A rule that fixes one case can break another. The rule came from the rare case 0, 0, 1, 0, 0, but XOR is a standard test for trees and I did not try it. After changing a stopping or splitting rule I should also run XOR and one other hard case.
-  - Checking an audit's claims myself was worth it: I reproduced the hang and the XOR result before changing anything. The audit's exactly balanced XOR needs perfectly symmetric data, which random clusters do not give, so I tested that case separately.
-- Effect on results: the numbers in the report do not change (blobs with misclassification error 4 leaves, pruning 85 leaves down to 2 and 81.0% up to 99.5%). RQ2 now compares the three measures on equal terms. Three smaller audit points are left for when the evaluation framework exists, because they depend on validation sets and AUC: pruning cuts rare-class trees hard, smoothing uses a uniform prior, and unreached nodes are kept.
-- Fixed the k-NN problems from the audit (issue #12, branch feature/knn-fixes) with Claude Code's help (see AI.md), writing a failing test first, in four code commits:
-  - k must be a whole number, with a clear error (2.5, True and "3" are rejected). The check is shared with the decision tree, and both now accept a whole float such as 3.0.
-  - The model keeps its own copy of the training data, so changing the original Dataset afterwards cannot change it. Score comparisons use np.isclose, because 0.1 + 0.2 and 0.3 are the same score but not equal in Python.
-  - The random tie-break is repeatable: a new generator is made from the seed on every predict call. Before, predicting the same tied point 12 times with one seed gave both answers.
-  - Ties in distance: every point tied at the k-th distance now votes, so row order no longer decides who the k-th neighbour is. The k-th distance is found with a partial sort, not a full sort.
-- What I learnt from issue #12:
-  - My own worked example depended on row order. E at (4,5) was exactly as far from Q as D, so the "2 red, 2 blue tie at k=4" only happened because the old code dropped E. I only noticed because the new rule broke five of my tests. I moved E to (4,6): every answer in the example stayed the same and k=4 is now a real tie. This is the same kind of hidden default as the alphabetical order in Week 3.
-  - A new rule can have side effects on a claim I made. With tied distances more than k points vote, so with two classes an odd k can tie after all. It did on Spambase (0.1 to 0.4% at odd k), and the notes now say so.
-- Effect on results: only the Spambase row of the tie table moves (12.2 to 11.8 at k=2, 6.2 to 5.9 at k=4, 4.3 to 3.9 at k=6); the other data sets give the same counts. The Word report has since been updated with the new Spambase row and the new example point.
-- Fixed the data-loading problems from the audit (issue #13, branch feature/data-checks) with Claude Code's help (see AI.md), writing a failing test first, in three code commits:
-  - load_csv rejects a header with repeated column names. Before, the second column silently replaced the first, so a feature just disappeared.
-  - Dataset gives a clear "X must be a rectangular table of numbers" error for a dict, an object, a complex number or a set. Before, Dataset([{}], [0]) gave a raw TypeError.
-  - Dataset and load_csv reject blank labels, and load_csv gives the line number. Before, an empty label cell became a class called ''.
-- What I learnt from issue #13:
-  - These checks are small, but they guard against failures with no warning: a vanished column or an extra class would change every result without any error.
-  - A stricter check can also reject a file that used to work. After each change I loaded all six real data sets, and all still load. Several blank column names have to stay allowed, because the real Breast Cancer header ends with a comma, so a test covers that case.
-- Effect on results: none. The data sets and the tie counts are unchanged.
-- Fixed the set-up problems from the audit (issue #14, branch feature/setup-fixes) with Claude Code's help (see AI.md), in three small commits:
-  - make_xor: n is the total number of points, while make_blobs and make_circles make n per class (2n). I documented this in the docstrings and pinned the sizes with a test, and left the data unchanged. Making the sizes match would have changed every XOR number in my report.
-  - README: it now starts with a python3 --version check and says what to do if the version is older than the required one (for example python3.12 -m venv .venv).
-  - CI: .gitlab-ci.yml has image: python:3.12, so the pipeline runs on a fixed Python and not whatever the runner has.
-- What I learnt from issue #14:
-  - I followed my own README with the macOS system Python (3.9.6) in a clean copy, and it failed with "No matching distribution found for numpy==2.5.3". That message never mentions the Python version, so a basic set-up problem looks like a package problem. Following the instructions on a clean copy, on an older Python, found it. Reading the README would not have.
-  - Some fixes are documentation, not code, and no test can fail first for them. I wrote a test that pins the behaviour instead, and said so.
-- Effect on results: none. Checked later: the pipelines on the university runner pass with image python:3.12 (for example the one for issue #18), so the image can be pulled.
-- Asked Claude Code to review the whole project (11 November; the PDF report is kept outside the repository). Besides reading the code, it tested my tests: a script made 334 copies of the source with one change each (an operator, a number or a condition) and ran all the tests on every copy. 285 changes were caught, 48 were not and 1 made the tests hang. Most of the 48 were behaviour that no test checked. Its edge-case checks also found two real bugs in predict. I fixed them in issue #17 (branch feature/predict-checks) with Claude Code's help (see AI.md), writing a failing test first for the two bugs, in six commits:
-  - predict rejects NaN and infinity, as the training data already did. Before, k-NN crashed with an IndexError on NaN, and k-NN with infinity and the tree with either gave an answer without a word.
-  - The tree can classify a query with no rows. Before it raised "scores must have shape (0, 2), got (0,)", while k-NN already returned an empty answer.
-  - 11 more tests for behaviour that nothing checked. These pass on the code as it is, so I tried each one against the broken copy it was written for. They cover Manhattan distance from a point that is not the origin; the spread, range and shape of the artificial data; the default k; the three tie-break strategies on one example where they give three different answers; pruning when both children make mistakes and a validation row exactly on a threshold; max_depth on both sides of a split; and a row exactly on a threshold, or two values one float step apart.
-  - Type hints for classes_ and n_features_ (with an assert before they are indexed), so mypy, which reported two errors on them, now passes.
-- What I learnt from issue #17:
-  - 100% line coverage did not mean the tests were strong. Every line ran, and 48 changes still passed. The only Manhattan test used the origin, where |a - b| and |a + b| are equal, so a sign mistake would not have failed any test. A good test needs an input where a wrong version gives a different answer.
-  - My tie-break test had all three strategies answering red, so the code that chooses between them was never really tested. The new example gives three different answers (green, red and blue), which only the right strategy can produce.
-  - predict checked its input less than train did, so a value that train refuses went straight through. Both entry points need the same checks.
-  - The first version of the mutation script had a bug: it emptied each file before reading it, so every copy was an empty module and the report said everything was caught. A hand-made broken copy that was not caught gave it away. A tool that checks my work needs checking too.
-- Effect on results: none. The 92 old tests still pass and valid input gives the same answers; only input that used to crash or be answered silently (NaN, infinity) now gives an error. Afterwards 317 of 338 changes are caught (the new code added 4 more to try), 2 make the tests hang, and 19 are not caught. 17 of those cannot change any answer (for example a random number landing exactly on 0).
-- Open point: the other 2 are in reduce_k. When several dots tie at the k-th distance it goes straight from all of them down to k-1 neighbours, and it can end on a class with only 1 vote out of 5. My notes say it drops one neighbour at a time. I have not decided what it should do, so I wrote no test that fixes the current behaviour.
-- Fixed the CI, set-up and declaration problems from the review (issue #18, branch feature/ci-docs) with Claude Code's help (see AI.md), in four small commits:
-  - AI.md: it only said that Claude Code audited the repository and helped with the input checks. It now lists what the AI did (the first version of most of the code, tests and notes, the fixes, the reviews and the report drafts), what I did myself and how I checked the output.
-  - CI: the lint job also checks scripts/, and the test job measures branch coverage and fails below 95% (before: line coverage, 90%). Branch coverage is 99%; the two missed branches are in the last fallback loop of knn.py.
-  - pyproject.toml: ruff has a line length of 120 and now reports longer lines (the longest is 119), and the dependencies say at least the versions pinned in requirements.txt.
-  - README: the layout lists .gitlab-ci.yml, scripts/ and data/, and the steps end with ruff check .
-- What I learnt from issue #18:
-  - A short declaration is easy to write but tells the markers little. Listing what each part of the repository came from, and what I decided myself, is more honest and easier to defend.
-  - No test can fail first for settings. I ran the exact CI commands on my machine instead, and checked that the new rule works by giving ruff a 130-character line, which it reports.
-- Effect on results: none.
-- Cleaned up the loader and a few other small things from the review (issue #19, branch feature/loader-cleanups) with Claude Code's help (see AI.md), in nine small commits, writing a failing test first wherever the behaviour changes:
-  - load_csv strips the spaces around labels, so "M " and "M" are one class. Before, they were two classes.
-  - load_csv accepts only ordinary numbers. Python's float() also takes "1_0" (as 10) and digits from other scripts, such as Arabic-Indic ones.
-  - A file that is not UTF-8 now gives "<file> is not a UTF-8 text file" instead of Python's "'utf-8' codec can't decode byte 0xe9".
-  - A missing column error names the file, the column and the columns the file has, and a label column that is also in drop_columns is rejected.
-  - raise ... from None where an error is re-raised inside an except (dataset.py, loader.py), so the traceback shows only my message.
-  - zip(..., strict=True) in knn.py. Ruff now also checks raise-from (B904) and zip (B905), so these rules guard the new code as well.
-  - make_xor works out its labels for all points at once and not in a loop. The data is the same: I compared 32 cases with the output of the old code, values and types.
-  - A comment in pyproject.toml saying that matplotlib is for the ROC plots (nothing imports it yet).
-- What I learnt from issue #19:
-  - A change that adds no behaviour cannot fail a test first. For the zip I switched on the ruff rule instead, which failed before the fix and passes after it. For make_xor I wrote a test that compares the new labels with the old loop, and ran the old and new code side by side.
-  - Small checks matter when the data is real: before and after the stricter number rule I ran scripts/count_ties.py, which loads all six real data sets, and the tie table came out identical.
-- Effect on results: none. The tie table is the same and the fraud file loads in about the same time (2.3 seconds).
-- Corrected four statements in this diary that were no longer true: the branch name for issue #11, the sentence about the Word report, the Python version in the README entry, and the CI image check.
-- Behind plan: the audit fixes took the time, so the evaluation framework has not started and the two early reports are still to be written.
-- Next: the other audit groups (the tie-count script and its uninformative fraud row, the remaining tree points), then the early reports and the evaluation framework.
+- Plan: write the two early reports and start the evaluation framework.
+- Done: fixed the problems the audits found (decision tree, tree hang and XOR rule, k-NN, data loading, set-up; issues #9, #11 to #14); reviewed the project with mutation testing and added the missing tests (#17); CI, ruff and README updates (#18); loader clean-ups (#19); moved the report to the new template. The audits took the time, so the framework and the reports did not start.
+- Next week: start the evaluation framework (#10), then write the two early reports.
 
 ## Week 6
-- Decision trees (issue #7) merged into main on GitLab and mirrored to GitHub.
-- Counted how often the k-NN vote ends in a tie on each data set (issue #8), with Claude Code's help (see AI.md):
-  - Added has_tie, which finds the rows where two or more classes share the top score, with tests that use the k=4 tie from my notes.
-  - Wrote scripts/count_ties.py: a random 70/30 split (seed 0), features standardised on the training rows only, then k = 1 to 10. The fraud data uses a 3,000-row subsample because brute-force k-NN is too slow on 284,807 rows.
-  - Results are in documents/knn/tie_counts.md. With two classes and an odd k there are never ties, as expected. With an even k, German Credit ties the most: 38.7% of test points at k=2, still 8.7% at k=10. Spambase is next (12.2% at k=2). Iris and the fraud subsample had no ties.
-- This changes how I will test RQ1: the tie-breaking strategy can only matter at an even k, so the comparison should focus on German Credit and Spambase at k=2 and k=4.
-- The counts come from one random split, so I will repeat them with cross-validation once it is built.
-- Next: the two early reports (k-NN, decision trees), then the evaluation framework (hold-out split, stratified cross-validation, confusion matrix, ROC and AUC, normalisation).
+- Plan: the two early reports, count k-NN ties on each data set.
+- Done: decision trees merged (#7); counted how often the k-NN vote ties on each data set (#8, scripts/count_ties.py); German Credit ties most (38.7% at k=2).
+- Next week: the two early reports, then the evaluation framework.
 
 ## Week 5
-- Checked progress against the plan: about two weeks behind. Decision trees (Weeks 3 to 4) had not been started, and the two early reports are due this week.
-- Built decision trees (issue #7), with Claude Code's help (see AI.md), writing the tests first for each step:
-  - Research note on decision trees, with a worked example (6 red, 4 blue gives Gini 0.48, entropy 0.971, misclassification 0.4).
-  - The three impurity measures, and a threshold search that tries every feature and every point halfway between two values.
-  - A DecisionTree class that follows the Classifier interface, with three stopping rules (pure node, max depth, min samples to split). Its scores are the class shares in the leaf, for ROC curves later.
-  - Reduced-error pruning, which turns a node into a leaf if that is no worse on a validation set. On blobs with 15% of the labels flipped, pruning made the tree smaller and its test accuracy no worse.
-- Found an example for RQ2 (Hastie et al.): two splits that misclassification error scores the same (0.25), while Gini prefers the one that makes a pure group (0.333 against 0.375).
-- Known limitation: the threshold search is slow on large data, so the fraud data set will need a subsample.
-- Had the code reviewed (see AI.md). It found that prune() crashed with an unclear error when the validation set had a label the tree never saw in training, or the wrong number of columns. Fixed both, with a test for each, and corrected a comment that said the XOR points were spread evenly when they are random.
-- Feedback from my supervisor on the project plan: the abstract needs more motivation, and I should build a basic GUI in Term 1 so there is a demo. I will build the GUI at the end of Term 1, after the other Term 1 work.
-- Next: write the two early reports (k-NN tie-breaking, decision trees), count ties on each data set (RQ1), then the evaluation framework (Weeks 6 to 7).
+- Plan: decision trees and the two early reports.
+- Done: built decision trees (#7) with three impurity measures, stopping rules, leaf scores and pruning; a code review fixed prune(); supervisor feedback: more motivation in the abstract and a basic GUI in Term 1.
+- Next week: the two early reports, count ties on each data set, then the evaluation framework.
 
 ## Week 4
-- No project commits this week. I am working on other modules because I have a marked quiz and other assignment deadlines this week.
-- Next: when I come back, count how often ties happen on each data set (RQ1), then start decision trees.
+- Plan: count ties on each data set, start decision trees.
+- Done: no project work, because of deadlines in other modules.
+- Next week: count ties, start decision trees.
 
 ## Week 3
-- Finished the Week 2 work (issue #4), with Claude Code's help (see AI.md):
-  - Research note on the four tie-breaking strategies, with a worked example where k=4 gives a 2-2 tie.
-  - Artificial data sets (blobs, XOR, circles) with a fixed seed, so the same seed always gives the same data.
-  - A k-NN classifier that follows the Classifier interface. Its scores are the share of the vote for each class. It gets 100% on blobs and 97.5% on XOR, which no straight line can split.
-  - The four tie-breaking strategies: random (seeded), nearest label, reduce k and distance-weighted (Dudani).
-- What I learnt: before adding the strategies, a 2-2 tie at k=4 was decided by alphabetical order, so "blue" won only because it comes before "red". Three of the four strategies pick red on the same example. This showed me why RQ1 matters: a hidden default can decide the answer.
-- Decided to keep the scores as plain vote shares and let the strategy only decide ties, so the ROC curves later use the real votes.
-- Moved the k-NN notes into documents/knn and brought the README up to date.
-- Change from the plan: I am writing the report in Word using the department's template, not Overleaf.
-- Next: count how often ties happen on each data set (RQ1), then decision trees (Weeks 3 to 4).
+- Plan: finish k-NN with tie-breaking and the artificial data.
+- Done: finished the Week 2 work (#4): tie-breaking notes, artificial data (blobs, XOR, circles) and k-NN with four tie-breaking strategies.
+- Next week: count ties on each data set, then decision trees.
 
 ## Week 2
-- Switched from Java to Python, with my supervisor's agreement. NumPy, Matplotlib and pytest let me spend more time on the algorithms (see section 5 of the plan).
-- Rebuilt the base in Python: Dataset, the abstract Classifier and load_csv, each with pytest tests.
-- Had the code audited with Claude Code (see AI.md) and fixed what it found:
-  - Dataset and load_csv now reject bad input (uneven rows, missing values, NaN) with clear errors, and can drop the id column in the Breast Cancer data.
-  - Classifier now gives a score for each class, which ROC and cost curves will need later.
-  - Brought back distances.py (Euclidean and Manhattan).
-- Caught up on a Week 1 task (issue #3): made a Kaggle account and downloaded the six data sets (Breast Cancer, Iris, Wine, Spambase, German Credit, Credit Card Fraud) into data/, which Git ignores.
-- Checked every file loads, with Claude Code's help. The real Breast Cancer file has a blank column name only in the header, which my loader rejected, so I fixed that. The UCI files have no header row and German Credit uses spaces, so load_csv can now read both.
-- Wrote research notes on the data sets (data_sets.md) and corrected the CSV note, which had assumed the wrong layout.
-- Found useful details: German Credit has its own cost matrix (5 to 1), fraud is only 0.17% of transactions, and Wine's features have very different scales.
-- Behind plan: k-NN, the tie-breaking strategies and the artificial data are not done yet.
-- Next: research note on tie-breaking, artificial data (blobs, XOR, circles), then k-NN with the four tie-breaking strategies, then decision trees.
+- Plan: 1-NN and k-NN with tie-breaking.
+- Done: switched from Java to Python (supervisor agreed); rebuilt Dataset, Classifier and load_csv with tests; downloaded and checked the six data sets (#3). k-NN was not done.
+- Next week: artificial data, then k-NN with four tie-breaking strategies.
 
 ## Week 1
-- Finalised project plan (Java, cost-sensitive extension, multi-class secondary study).
-- Set up Java/Maven, GitLab repo structure, Classifier interface and first test.
-- Reading: Mitchell ch. 1, 8; started notes on kNN.
-- Next: implement 1-NN and kNN with tie-breaking (Week 2).
+- Plan: finalise the project plan and set up the project.
+- Done: finalised the plan; set up Java/Maven, the GitLab repository and the Classifier interface; read Mitchell chapters 1 and 8.
+- Next week: 1-NN and k-NN with tie-breaking.
