@@ -44,9 +44,11 @@ def _read_csv(path, label_column, drop_columns, column_names, whitespace):
         if repeated:
             raise ValueError(f"{path} has repeated column names: {repeated}")
 
-        for name in [label_column, *drop_columns]:
+        if label_column not in headers:
+            raise KeyError(f"{path} has no label column {label_column!r} (its columns are {named})")
+        for name in drop_columns:
             if name not in headers:
-                raise KeyError(name)
+                raise KeyError(f"{path} has no column {name!r} to drop (its columns are {named})")
 
         # Every other named column is a feature (blank header names are skipped)
         features = [h for h in headers if h and h != label_column and h not in drop_columns]

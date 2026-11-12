@@ -137,3 +137,11 @@ def test_a_file_that_is_not_utf8_gives_a_clear_error(tmp_path):
     file.write_bytes("x1,colour\n1,café\n".encode("latin-1"))  # here the é is one byte, which is not valid UTF-8
     with pytest.raises(ValueError, match="latin1.csv is not a UTF-8 text file"):
         load_csv(file, "colour")
+
+
+def test_a_missing_column_error_names_the_file_and_the_column(tmp_path):
+    file = make_csv(tmp_path, "id,x1,colour\n1,1,red\n")
+    with pytest.raises(KeyError, match="data.csv has no label column 'nope' .*'x1'"):
+        load_csv(file, "nope")
+    with pytest.raises(KeyError, match="data.csv has no column 'idd' to drop .*'x1'"):
+        load_csv(file, "colour", drop_columns=["idd"])
