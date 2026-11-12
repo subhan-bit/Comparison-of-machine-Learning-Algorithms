@@ -124,6 +124,11 @@ def test_k_must_be_a_whole_number():
     assert KNN(k=3.0).k == 3  # a whole float is fine
 
 
+def test_a_huge_k_is_rejected_when_the_model_is_made():
+    with pytest.raises(ValueError, match="k is too large"):  # before: it failed later, in train()
+        KNN(k=1e300)
+
+
 def test_k4_is_a_tie_and_the_scores_show_it():
     model = KNN(k=4)
     model.train(DOTS)
@@ -169,13 +174,43 @@ def test_reduce_k_drops_one_neighbour_at_a_time_and_stops_at_the_first_winner():
         assert model.predict([[0]]).tolist() == [answer], strategy
 
 
-def test_reduce_k_and_weighted_fall_back_to_the_row_order_as_a_last_resort():
+def test_weighted_falls_back_to_the_row_order_as_a_last_resort():
     # three dots exactly as far from Q as each other, one class each: even k=1 is a three-way tie
     data = Dataset([[0, 1], [1, 0], [0, -1]], ["c", "a", "b"])
-    for strategy in ["reduce_k", "weighted"]:
-        model = KNN(k=1, tie_break=strategy)
-        model.train(data)
-        assert model.predict([[0, 0]]).tolist() == ["c"], strategy  # the first row wins
+    model = KNN(k=1, tie_break="weighted")
+    model.train(data)
+    assert model.predict([[0, 0]]).tolist() == ["c"]  # the first row wins
+
+
+def test_reduce_k_falls_back_to_the_class_order_as_a_last_resort():
+    # the same three dots, one class each: there is no smaller vote to try, so the class that
+    # comes first in the sorted classes ("a") wins, in every row order
+    points = [[0, 1], [1, 0], [0, -1]]
+    for order in itertools.permutations(range(3)):
+        model = KNN(k=1, tie_break="reduce_k")
+        model.train(Dataset([points[i] for i in order], [["c", "a", "b"][i] for i in order]))
+        assert model.predict([[0, 0]]).tolist() == ["a"], order
+
+
+def test_reduce_k_gives_the_same_answer_in_any_row_order_when_all_voters_are_equally_far():
+    # four dots exactly 1 away from Q, two of each class: the vote is 2-2 and nothing is left to drop
+    points = [[1, 0], [0, 1], [-1, 0], [0, -1]]
+    for labels in (["a", "a", "b", "b"], ["b", "b", "a", "a"], ["a", "b", "a", "b"], ["b", "a", "b", "a"]):
+        model = KNN(k=2, tie_break="reduce_k")
+        model.train(Dataset(points, labels))
+        assert model.predict([[0, 0]]).tolist() == ["a"], labels  # before: whichever class came first in the rows
+
+
+def test_reduce_k_drops_the_whole_farthest_group_and_not_one_dot_of_it():
+    # Q is (0, 0). c is 1 away, b is 2 away, and three dots are exactly 3 away: a, a and b.
+    # k=4 gives a tie: a has 2 votes and b has 2 votes (c has 1). Dropping the three dots that are
+    # 3 away leaves c and b, still a tie. Dropping the dot that is 2 away leaves c, so c wins.
+    group = [([3, 0], "a"), ([-3, 0], "a"), ([0, 3], "b")]
+    for order in ([0, 1, 2], [2, 0, 1], [1, 2, 0]):
+        dots = [([1, 0], "c"), ([0, 2], "b")] + [group[i] for i in order]
+        model = KNN(k=4, tie_break="reduce_k")
+        model.train(Dataset([dot for dot, _ in dots], [label for _, label in dots]))
+        assert model.predict([[0, 0]]).tolist() == ["c"], order  # before: "b" when a b came first in the group
 
 
 def test_random_is_repeatable_with_a_seed_and_can_pick_either():
@@ -208,6 +243,23 @@ def test_random_without_a_seed_can_differ_between_calls():
     model.train(DOTS)
     answers = {model.predict(Q)[0] for _ in range(60)}
     assert answers == {"red", "blue"}
+
+
+def test_a_seeded_random_tie_break_gives_a_point_the_same_answer_in_any_batch():
+    data = Dataset([[0, 1], [0, -1]], ["a", "b"])  # a point on the x axis is exactly as far from both
+    model = KNN(k=2, tie_break="random", seed=3)
+    model.train(data)
+    alone = model.predict([[0, 0]]).tolist()
+    assert model.predict([[0, 0]] * 12).tolist() == alone * 12  # 12 copies together: the same answer each time
+    assert model.predict([[1, 0], [0, 0], [2, 0]]).tolist()[1] == alone[0]  # and between other points
+
+
+def test_a_seeded_random_tie_break_still_picks_both_classes_across_different_points():
+    data = Dataset([[0, 1], [0, -1]], ["a", "b"])
+    model = KNN(k=2, tie_break="random", seed=3)
+    model.train(data)
+    answers = model.predict([[x, 0] for x in range(40)]).tolist()  # 40 different tied points
+    assert set(answers) == {"a", "b"}
 
 
 def test_weighted_falls_back_to_nearest_when_the_weights_tie():

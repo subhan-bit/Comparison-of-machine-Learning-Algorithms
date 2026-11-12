@@ -14,15 +14,24 @@ Ties are common:
 ## The four strategies
 - Random. Pick one of the tied labels at random. Simple and unbiased, but the
   answer can change between runs, so the random generator needs a fixed seed.
+  With a seed, the generator for a point is made from the seed and the point's
+  own numbers, so the same point always gets the same answer, whatever else is
+  in the batch and in what order.
 - Nearest label. Pick the tied label of the single closest neighbour.
 - Reduce k. Drop the farthest neighbour and vote again with k-1. Repeat
-  until there is one winner. It always ends, because k=1 has only one vote.
+  until there is one winner. Voters that are equally far are dropped together,
+  because dropping only one of them would let the row order decide which of
+  them stays. The last vote is the one of the nearest group. If that still
+  ties, the class that comes first in the sorted classes wins.
 - Distance-weighted. Closer neighbours count more. Dudani's rule [1] gives
   the neighbour at distance d a weight of (d_k - d) / (d_k - d_1), where d_1
   is the nearest distance and d_k the k-th. So the nearest neighbour has
   weight 1 and the k-th has weight 0 (all weights are 1 if every distance is
   equal). Mitchell describes a similar idea with weight 1/d^2 [2]. Weighted
-  votes rarely tie, but if they do, one of the other strategies is needed.
+  votes rarely tie, but if they do, the nearest label decides. Every voter at
+  the k-th distance gets weight 0. They still count in the vote shares, so
+  they helped to make the tie, but they add nothing to the weighted totals, so
+  this strategy looks at a slightly smaller neighbourhood than the others.
 
 ## Example
 The dots from knn.md: A (1,1) red, B (2,1) red, C (4,4) blue,
@@ -55,9 +64,15 @@ distances are tied, nothing changes. Two effects:
 - With two classes and an odd k, the number of voters can be even, so a tie
   is possible after all (Spambase has points at exactly the same distance).
 - The strategies work on the voters ordered closest first. If the closest
-  points are equally far and in different classes, "nearest label" and
-  "reduce k" fall back to the order of the rows in the data. This is a last
-  resort, and a hidden default, so it is worth remembering for RQ1.
+  points are equally far and in different classes, "nearest label" (and the
+  weighted strategy when its weights tie) fall back to the order of the rows
+  in the data. This is a last resort, and a hidden default, so it is worth
+  remembering for RQ1. "Reduce k" no longer does this: it drops equally far
+  voters together, and when nothing is left to drop the class order decides.
+
+"Equally far" is not exact. Two distances count as equal when they differ by
+less than a relative 1e-9 (np.isclose, with 1e-12 as the absolute limit), so
+rounding errors cannot decide who the k-th neighbour is.
 
 ## Why it matters for my project
 - RQ1 asks whether the choice of strategy changes the results. To answer it,
@@ -66,9 +81,14 @@ distances are tied, nothing changes. Two effects:
 - The vote shares are also k-NN's scores for ROC curves. A tie gives two
   labels the same score, so the ROC code must handle equal scores.
 - Random tie-breaking must use a seeded random generator so experiments can
-  be repeated exactly (audit item 7). A new generator is made from the seed on
-  every predict call, so the same data always gives the same answers. A
-  generator kept for the whole model gave a different answer each call.
+  be repeated exactly (audit item 7). The generator for a tied point is made
+  from the seed and the point's own numbers. Two earlier versions were not
+  good enough: one generator kept for the whole model gave a different answer
+  each call, and one made for each predict call gave a point a different
+  answer depending on how many tied points came before it (12 copies of one
+  tied point gave a mix of both answers). Now the same point always gets the
+  same answer, so results do not change if the test set is batched or ordered
+  differently, for example by cross-validation fold.
 
 ## Still to learn
 - Whether another rule for ties in distance (such as choosing among the
@@ -76,6 +96,9 @@ distances are tied, nothing changes. Two effects:
   them vote.
 - Which strategy scikit-learn and Weka use, since I will check my results
   against them and need to know why answers might differ.
+- Whether "nearest label" should also use the class order, instead of the row
+  order, when the closest points are equally far. It is the one strategy that
+  still depends on the row order in that case.
 
 ## Sources
 [1] S. A. Dudani. The distance-weighted k-nearest-neighbor rule. IEEE

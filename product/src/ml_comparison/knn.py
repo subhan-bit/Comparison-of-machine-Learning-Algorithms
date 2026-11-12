@@ -76,9 +76,6 @@ class KNN(Classifier):
         """Like the base class, but a tie for the top score is broken by the chosen strategy."""
         scores = self.predict_scores(X)  # also checks the input
         X = np.asarray(X, dtype=float)
-        # A new generator for every call, so with a seed the same data always gives the same
-        # answers. (One generator kept for the whole model would give a different answer each time.)
-        rng = np.random.default_rng(self.seed)
         winners = []
         for row, point in enumerate(X):
             # the classes that share the highest score
@@ -86,25 +83,45 @@ class KNN(Classifier):
             if len(tied) == 1:
                 winners.append(tied[0])
             else:
-                winners.append(self._break_tie(point, tied, rng))
+                winners.append(self._break_tie(point, tied))
         assert self.classes_ is not None  # predict_scores has already checked that train() was called
         return self.classes_[winners]
 
-    def _break_tie(self, point, tied, rng):
-        """Pick one class from the tied ones, using the chosen strategy. rng is for "random"."""
+    def _generator_for(self, point):
+        """The random generator for one tied point.
+
+        With a seed it is made from the seed and the point's own numbers, so the same point always
+        gets the same answer, whatever else is in the batch and in what order. Without a seed it is random.
+        """
+        if self.seed is None:
+            return np.random.default_rng()
+        numbers = np.ascontiguousarray(point + 0.0).view(np.uint64)  # + 0.0 makes -0.0 the same as 0.0
+        return np.random.default_rng([self.seed, *numbers.tolist()])
+
+    def _break_tie(self, point, tied):
+        """Pick one class from the tied ones, using the chosen strategy."""
         nearest, distances = self._neighbours(point)
         codes = self.train_codes[nearest]  # the neighbours' classes, closest first
 
         if self.tie_break == "random":
-            return rng.choice(tied)
+            return self._generator_for(point).choice(tied)
 
         if self.tie_break == "reduce_k":
-            # drop the farthest neighbour and vote again, until one class wins
-            for smaller_k in range(self.k - 1, 0, -1):
-                votes = np.bincount(codes[:smaller_k], minlength=self.n_classes)
+            # Drop the whole farthest group of equally far voters and vote again, until one class wins.
+            # (Dropping just one voter of a group would let the row order decide which of them stays.)
+            still_tied = tied
+            size = len(codes)
+            while True:
+                # keep only the voters that are nearer than the farthest group
+                size = np.count_nonzero(~same(distances[:size], distances[size - 1]))
+                if size == 0:
+                    break  # everything left is equally far, so there is no smaller vote to try
+                votes = np.bincount(codes[:size], minlength=self.n_classes)
                 top = np.flatnonzero(votes == votes.max())
                 if len(top) == 1:
                     return top[0]
+                still_tied = top
+            return still_tied[0]  # still a tie: the class that comes first in the sorted classes wins
 
         if self.tie_break == "weighted":
             # Dudani's rule: the nearest neighbour has weight 1, the k-th has weight 0
