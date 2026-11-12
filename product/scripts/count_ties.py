@@ -14,7 +14,14 @@ from ml_comparison.loader import load_csv
 
 DATA = Path(__file__).resolve().parents[2] / "data"
 K_VALUES = range(1, 11)
-rng = np.random.default_rng(0)  # a fixed seed, so every run gives the same numbers
+SEED = 0  # fixed, so every run gives the same numbers
+FRAUD = "Credit Card Fraud"
+
+
+def rng_for(name):
+    """The random generator for one data set. Its seed is made from the data set's name, so a
+    data set gets the same random numbers whatever the other data sets are, or in what order."""
+    return np.random.default_rng([SEED, *name.encode()])
 
 
 def names(n):
@@ -22,13 +29,13 @@ def names(n):
     return [f"x{i}" for i in range(1, n + 1)]
 
 
-def subsample(data, n):
+def subsample(data, n, rng):
     """n random rows, for the fraud data, which is too big for brute-force k-NN."""
     rows = rng.choice(len(data), size=n, replace=False)
     return Dataset(data.X[rows], data.y[rows])
 
 
-def split(data):
+def split(data, rng):
     """A random 70% for training and 30% for testing."""
     rows = rng.permutation(len(data))
     cut = int(0.7 * len(data))
@@ -55,8 +62,25 @@ def load_all():
                              column_names=[*names(57), "spam"]),
         "German Credit": load_csv(DATA / "german_credit" / "german.data-numeric", "credit",
                                   column_names=[*names(24), "credit"], whitespace=True),
-        "Credit Card Fraud": subsample(load_csv(DATA / "creditcard.csv", "Class"), 3000),
+        FRAUD: load_csv(DATA / "creditcard.csv", "Class"),
     }
+
+
+def count_row(name, data):
+    """For one data set: the % of test points with a tied vote for each k.
+
+    Only the name and the data decide the result, so it does not depend on the other data sets.
+    """
+    rng = rng_for(name)
+    if name == FRAUD:
+        data = subsample(data, 3000, rng)
+    train, test = standardise(*split(data, rng))
+    ties = []
+    for k in K_VALUES:
+        model = KNN(k=k)
+        model.train(train)
+        ties.append(100 * has_tie(model.predict_scores(test.X)).mean())
+    return {"classes": len(data.classes), "ties": ties}
 
 
 def main():
@@ -64,14 +88,8 @@ def main():
     print("| Data set | Classes | " + " | ".join(f"k={k}" for k in K_VALUES) + " |")
     print("|---|---|" + "---|" * len(K_VALUES))
     for name, data in load_all().items():
-        train, test = standardise(*split(data))
-        row = []
-        for k in K_VALUES:
-            model = KNN(k=k)
-            model.train(train)
-            ties = has_tie(model.predict_scores(test.X))
-            row.append(f"{100 * ties.mean():.1f}")
-        print(f"| {name} | {len(data.classes)} | " + " | ".join(row) + " |")
+        row = count_row(name, data)
+        print(f"| {name} | {row['classes']} | " + " | ".join(f"{t:.1f}" for t in row["ties"]) + " |")
 
 
 if __name__ == "__main__":
