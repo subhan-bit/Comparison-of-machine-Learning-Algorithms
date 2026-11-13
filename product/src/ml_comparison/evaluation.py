@@ -128,3 +128,20 @@ def true_and_false_positive_rates(matrix, classes, positive_label):
         raise ValueError("there are no rows of the other classes, so the false positive rate is undefined")
     return (true_positives / (true_positives + false_negatives),
             false_positives / (false_positives + true_negatives))
+
+
+def standardise(train, test):
+    """Give every feature mean 0 and spread 1, worked out from the training rows only.
+
+    The test rows are changed with the training mean and spread, and take no part in working them
+    out. Otherwise the test rows would leak into the training, and the result would look better than
+    it is. Inside cross-validation this is done again in every fold. Returns new data sets and leaves
+    the originals as they were.
+    """
+    if len(train) == 0:
+        raise ValueError("there are no training rows to work out the mean and spread from")
+    mean = train.X.mean(axis=0)
+    spread = train.X.std(axis=0)
+    spread[spread == 0] = 1  # a feature that never changes would divide by 0
+    return (Dataset((train.X - mean) / spread, train.y, train.positive_label, train.classes),
+            Dataset((test.X - mean) / spread, test.y, test.positive_label, test.classes))

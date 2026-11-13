@@ -5,6 +5,7 @@ from ml_comparison.dataset import Dataset
 from ml_comparison.evaluation import (
     accuracy,
     confusion_matrix,
+    standardise,
     stratified_k_fold,
     train_test_split,
     true_and_false_positive_rates,
@@ -182,3 +183,39 @@ def test_bad_input_to_the_rates_is_rejected():
         true_and_false_positive_rates(matrix, ["a", "b"], "a")
     with pytest.raises(ValueError, match="'z' is not one of the classes"):
         true_and_false_positive_rates(matrix, ["a", "b"], "z")
+
+
+def test_standardising_uses_the_training_rows_only():
+    train = Dataset([[1, 10], [3, 10], [5, 10]], ["a", "b", "a"])
+    new_train, new_far = standardise(train, Dataset([[100, 10]], ["a"]))
+    again_train, _ = standardise(train, Dataset([[3, 10]], ["a"]))
+    # the test rows do not change the mean and spread, so the training part comes out the same
+    assert new_train.X.tolist() == again_train.X.tolist()
+    # the training part has mean 0 and spread 1 (a feature that never changes is just 0)
+    assert new_train.X.mean(axis=0) == pytest.approx([0, 0])
+    assert new_train.X[:, 0].std() == pytest.approx(1)
+    assert new_train.X[:, 1].tolist() == [0, 0, 0]
+    # the test row is changed with the training mean (3) and spread (the square root of 8/3)
+    assert new_far.X[0, 0] == pytest.approx((100 - 3) / np.sqrt(8 / 3))
+    assert new_far.X[0, 1] == 0
+
+
+def test_standardising_keeps_the_labels_the_class_list_and_the_positive_class():
+    classes = ["a", "b", "c"]
+    train = Dataset([[1], [2]], ["a", "b"], positive_label="b", classes=classes)
+    test = Dataset([[3]], ["a"], positive_label="b", classes=classes)
+    new_train, new_test = standardise(train, test)
+    assert (new_train.y.tolist(), new_test.y.tolist()) == (["a", "b"], ["a"])
+    assert new_train.classes.tolist() == classes and new_test.classes.tolist() == classes
+    assert (new_train.positive_label, new_test.positive_label) == ("b", "b")
+
+
+def test_standardising_does_not_change_the_original_data_sets():
+    train, test = Dataset([[1.0], [3.0]], ["a", "b"]), Dataset([[2.0]], ["a"])
+    standardise(train, test)
+    assert (train.X.tolist(), test.X.tolist()) == ([[1.0], [3.0]], [[2.0]])
+
+
+def test_standardising_needs_training_rows():
+    with pytest.raises(ValueError, match="no training rows"):
+        standardise(Dataset([], []), Dataset([[1]], ["a"]))
