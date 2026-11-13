@@ -32,6 +32,25 @@ def test_the_same_seed_gives_the_same_split_and_another_seed_a_different_one():
     assert first[1].X.tolist() != other[1].X.tolist()
 
 
+def test_a_stratified_split_keeps_the_share_of_each_class():
+    data = rare_class_data(10, 190)  # 5% of the rows are rare
+    train, test = train_test_split(data, test_fraction=0.3, seed=1, stratify=True)
+    assert (count(test, "rare"), count(test, "common")) == (3, 57)  # 30% of each class
+    assert (count(train, "rare"), count(train, "common")) == (7, 133)
+
+
+def test_a_stratified_split_puts_a_rare_class_in_both_parts():
+    data = rare_class_data(2, 198)
+    train, test = train_test_split(data, test_fraction=0.1, seed=1, stratify=True)
+    assert (count(train, "rare"), count(test, "rare")) == (1, 1)  # 10% of 2 rows rounds to 0, but each part keeps one
+
+
+def test_a_class_with_one_row_stays_in_the_training_part():
+    data = Dataset(np.arange(11, dtype=float).reshape(-1, 1), ["one"] + ["many"] * 10)
+    train, test = train_test_split(data, test_fraction=0.3, seed=1, stratify=True)
+    assert (count(train, "one"), count(test, "one")) == (1, 0)
+
+
 def test_both_parts_keep_the_full_class_list_and_the_positive_class():
     # with one row of a class, the class can land on one side only, but it is still a class in both parts
     data = Dataset(np.arange(11, dtype=float).reshape(-1, 1), ["one"] + ["many"] * 10, positive_label="one")
