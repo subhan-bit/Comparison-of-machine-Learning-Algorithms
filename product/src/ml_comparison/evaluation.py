@@ -77,3 +77,22 @@ def stratified_k_fold(data, k=5, seed=0):
     test_rows = [rng.permutation(np.flatnonzero(fold_of == i)) for i in range(k)]
     train_rows = [rng.permutation(np.flatnonzero(fold_of != i)) for i in range(k)]
     return ((subset(data, train_rows[i]), subset(data, test_rows[i])) for i in range(k))
+
+
+def confusion_matrix(true, predicted, classes):
+    """Count the rows by their true class (down) and their predicted class (across).
+
+    The rows and columns are in the order of the list of classes. matrix[i][j] is how many rows of
+    class i were predicted as class j, so the right answers are on the diagonal.
+    """
+    true, predicted = np.asarray(true).tolist(), np.asarray(predicted).tolist()
+    if len(true) != len(predicted):
+        raise ValueError("true and predicted must have the same length")
+    position = {label: i for i, label in enumerate(np.asarray(classes).tolist())}
+    matrix = np.zeros((len(position), len(position)), dtype=int)
+    for true_label, predicted_label in zip(true, predicted, strict=True):
+        for label in (true_label, predicted_label):
+            if label not in position:
+                raise ValueError(f"{label!r} is not one of the classes")
+        matrix[position[true_label], position[predicted_label]] += 1
+    return matrix

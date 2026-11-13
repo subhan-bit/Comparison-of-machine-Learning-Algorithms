@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from ml_comparison.dataset import Dataset
-from ml_comparison.evaluation import stratified_k_fold, train_test_split
+from ml_comparison.evaluation import confusion_matrix, stratified_k_fold, train_test_split
 
 
 def rare_class_data(n_rare=10, n_common=190):
@@ -113,3 +113,27 @@ def test_bad_fold_settings_are_rejected():
         stratified_k_fold(Dataset([[1], [2], [3]], ["a", "b", "a"]), k=5)
     with pytest.raises(TypeError, match="k must be a whole number"):
         stratified_k_fold(data, k=2.5)
+
+
+CLASSES = ["fraud", "genuine"]
+TRUE = ["fraud", "fraud", "fraud", "genuine", "genuine", "genuine", "genuine", "genuine"]
+PREDICTED = ["fraud", "fraud", "genuine", "fraud", "genuine", "genuine", "genuine", "genuine"]
+
+
+def test_the_confusion_matrix_counts_true_classes_against_predicted_classes():
+    # rows are the true class and columns the predicted class, in the order of the class list
+    matrix = confusion_matrix(TRUE, PREDICTED, CLASSES)
+    assert matrix.tolist() == [[2, 1],   # 3 frauds: 2 caught, 1 missed
+                               [1, 4]]   # 5 genuine: 1 false alarm, 4 right
+
+
+def test_a_class_with_no_rows_still_has_a_row_and_a_column():
+    matrix = confusion_matrix(["a", "a", "b"], ["a", "c", "b"], ["a", "b", "c"])
+    assert matrix.tolist() == [[1, 0, 1], [0, 1, 0], [0, 0, 0]]
+
+
+def test_bad_input_to_the_confusion_matrix_is_rejected():
+    with pytest.raises(ValueError, match="'q' is not one of the classes"):
+        confusion_matrix(["a"], ["q"], ["a", "b"])
+    with pytest.raises(ValueError, match="same length"):
+        confusion_matrix(["a", "b"], ["a"], ["a", "b"])
