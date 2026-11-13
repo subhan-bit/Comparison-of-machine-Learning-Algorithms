@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from ml_comparison.checks import check_whole_number
 from ml_comparison.dataset import Dataset
 
 
@@ -48,3 +49,31 @@ def train_test_split(data, test_fraction=0.3, seed=0, stratify=False):
     if len(train) == 0 or len(test) == 0:
         raise ValueError("the data set is too small to split")
     return subset(data, train), subset(data, test)
+
+
+def stratified_k_fold(data, k=5, seed=0):
+    """Split the rows into k folds, and give each fold a turn as the test part.
+
+    Returns the k pairs (training part, test part), one at a time. Every class is dealt out to the
+    folds in turn, so each fold has about the same share of each class, to within one row. The same
+    seed gives the same folds.
+    """
+    k = check_whole_number("k", k)
+    if k < 2:
+        raise ValueError(f"k must be at least 2, not {k}")
+    if k > len(data):
+        raise ValueError(f"{k} folds is more folds than rows ({len(data)})")
+    rng = np.random.default_rng(seed)
+
+    fold_of = np.empty(len(data), dtype=int)  # which fold each row is in
+    next_fold = 0
+    for code in range(len(data.classes)):
+        rows = rng.permutation(np.flatnonzero(data.codes == code))
+        fold_of[rows] = (next_fold + np.arange(len(rows))) % k
+        # the next class carries on from where this one stopped, so the folds stay the same size
+        next_fold = (next_fold + len(rows)) % k
+
+    # the rows of each fold are worked out now, so the same seed always gives the same folds
+    test_rows = [rng.permutation(np.flatnonzero(fold_of == i)) for i in range(k)]
+    train_rows = [rng.permutation(np.flatnonzero(fold_of != i)) for i in range(k)]
+    return ((subset(data, train_rows[i]), subset(data, test_rows[i])) for i in range(k))
