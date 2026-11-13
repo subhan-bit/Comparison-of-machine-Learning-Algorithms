@@ -4,7 +4,7 @@ import numpy as np
 
 
 class Dataset:
-    def __init__(self, X, y, positive_label=None):
+    def __init__(self, X, y, positive_label=None, classes=None):
         # X must be a table of numbers. Uneven rows or text make this fail.
         try:
             X = np.array(X, dtype=float)
@@ -35,7 +35,20 @@ class Dataset:
 
         # classes: each label once, sorted. codes: the position of each row's label in classes.
         # Example: y = [spam, ham, spam] -> classes = [ham, spam], codes = [1, 0, 1]
-        self.classes, self.codes = np.unique(y, return_inverse=True)
+        if classes is None:
+            self.classes, self.codes = np.unique(y, return_inverse=True)
+        else:
+            # The classes were given, for example the classes of the whole data set for one of its
+            # splits. A class with no rows here is still a class, so the score columns of a
+            # classifier do not depend on which classes landed in a split.
+            self.classes = np.array(classes)
+            position = {label: i for i, label in enumerate(self.classes)}
+            if len(position) != len(self.classes):
+                raise ValueError("classes must not repeat a label")
+            try:
+                self.codes = np.array([position[label] for label in y.tolist()], dtype=int)
+            except KeyError as error:
+                raise ValueError(f"label {error.args[0]!r} is not one of the classes") from None
 
         # The "positive" class is the one we care about finding, e.g. fraud or spam
         if positive_label is not None and positive_label not in list(self.classes):
