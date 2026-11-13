@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from ml_comparison.dataset import Dataset
-from ml_comparison.evaluation import confusion_matrix, stratified_k_fold, train_test_split
+from ml_comparison.evaluation import accuracy, confusion_matrix, stratified_k_fold, train_test_split
 
 
 def rare_class_data(n_rare=10, n_common=190):
@@ -132,8 +132,20 @@ def test_a_class_with_no_rows_still_has_a_row_and_a_column():
     assert matrix.tolist() == [[1, 0, 1], [0, 1, 0], [0, 0, 0]]
 
 
+def test_accuracy_is_the_share_of_right_answers():
+    assert accuracy(TRUE, PREDICTED) == 6 / 8
+    assert accuracy(["a"], ["a"]) == 1.0
+
+
 def test_bad_input_to_the_confusion_matrix_is_rejected():
     with pytest.raises(ValueError, match="'q' is not one of the classes"):
         confusion_matrix(["a"], ["q"], ["a", "b"])
     with pytest.raises(ValueError, match="same length"):
         confusion_matrix(["a", "b"], ["a"], ["a", "b"])
+
+
+def test_bad_input_to_accuracy_is_rejected():
+    with pytest.raises(ValueError, match="same length"):
+        accuracy(["a", "b"], ["a"])
+    with pytest.raises(ValueError, match="no rows"):
+        accuracy([], [])

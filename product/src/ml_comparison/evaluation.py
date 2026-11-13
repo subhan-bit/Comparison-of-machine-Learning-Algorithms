@@ -96,3 +96,13 @@ def confusion_matrix(true, predicted, classes):
                 raise ValueError(f"{label!r} is not one of the classes")
         matrix[position[true_label], position[predicted_label]] += 1
     return matrix
+
+
+def accuracy(true, predicted):
+    """The share of the rows whose predicted class is the true class."""
+    true, predicted = np.asarray(true), np.asarray(predicted)
+    if len(true) != len(predicted):
+        raise ValueError("true and predicted must have the same length")
+    if len(true) == 0:
+        raise ValueError("there are no rows to measure")
+    return float(np.mean(true == predicted))
