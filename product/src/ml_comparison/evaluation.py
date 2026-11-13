@@ -106,3 +106,25 @@ def accuracy(true, predicted):
     if len(true) == 0:
         raise ValueError("there are no rows to measure")
     return float(np.mean(true == predicted))
+
+
+def true_and_false_positive_rates(matrix, classes, positive_label):
+    """The true positive rate TP / (TP + FN) and the false positive rate FP / (FP + TN).
+
+    positive_label is the class we care about, such as fraud. Every other class counts together as
+    negative, so this also works for more than two classes.
+    """
+    classes = np.asarray(classes).tolist()
+    if positive_label not in classes:
+        raise ValueError(f"{positive_label!r} is not one of the classes")
+    p = classes.index(positive_label)
+    true_positives = matrix[p, p]
+    false_negatives = matrix[p].sum() - true_positives
+    false_positives = matrix[:, p].sum() - true_positives
+    true_negatives = matrix.sum() - true_positives - false_negatives - false_positives
+    if true_positives + false_negatives == 0:
+        raise ValueError(f"there are no rows of {positive_label!r}, so the true positive rate is undefined")
+    if false_positives + true_negatives == 0:
+        raise ValueError("there are no rows of the other classes, so the false positive rate is undefined")
+    return (true_positives / (true_positives + false_negatives),
+            false_positives / (false_positives + true_negatives))

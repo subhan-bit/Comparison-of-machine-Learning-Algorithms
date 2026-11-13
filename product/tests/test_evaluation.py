@@ -2,7 +2,13 @@ import numpy as np
 import pytest
 
 from ml_comparison.dataset import Dataset
-from ml_comparison.evaluation import accuracy, confusion_matrix, stratified_k_fold, train_test_split
+from ml_comparison.evaluation import (
+    accuracy,
+    confusion_matrix,
+    stratified_k_fold,
+    train_test_split,
+    true_and_false_positive_rates,
+)
 
 
 def rare_class_data(n_rare=10, n_common=190):
@@ -137,6 +143,22 @@ def test_accuracy_is_the_share_of_right_answers():
     assert accuracy(["a"], ["a"]) == 1.0
 
 
+def test_true_and_false_positive_rates():
+    matrix = confusion_matrix(TRUE, PREDICTED, CLASSES)
+    # fraud is positive: 2 of 3 frauds caught, and 1 of 5 genuine rows flagged
+    assert true_and_false_positive_rates(matrix, CLASSES, "fraud") == pytest.approx((2 / 3, 1 / 5))
+    # looking from the other side, genuine is positive: 4 of 5 found, and 1 of 3 frauds called genuine
+    assert true_and_false_positive_rates(matrix, CLASSES, "genuine") == pytest.approx((4 / 5, 1 / 3))
+
+
+def test_with_more_than_two_classes_the_other_classes_count_together_as_negative():
+    matrix = np.array([[5, 1, 0],    # true a
+                       [2, 3, 1],    # true b
+                       [0, 2, 6]])   # true c
+    # positive is b: TP = 3, FN = 2 + 1 = 3, FP = 1 + 2 = 3, and TN is the rest: 5 + 0 + 0 + 6 = 11
+    assert true_and_false_positive_rates(matrix, ["a", "b", "c"], "b") == pytest.approx((3 / 6, 3 / 14))
+
+
 def test_bad_input_to_the_confusion_matrix_is_rejected():
     with pytest.raises(ValueError, match="'q' is not one of the classes"):
         confusion_matrix(["a"], ["q"], ["a", "b"])
@@ -149,3 +171,14 @@ def test_bad_input_to_accuracy_is_rejected():
         accuracy(["a", "b"], ["a"])
     with pytest.raises(ValueError, match="no rows"):
         accuracy([], [])
+
+
+def test_bad_input_to_the_rates_is_rejected():
+    matrix = np.array([[0, 0], [1, 2]])  # there are no true "a" rows
+    with pytest.raises(ValueError, match="no rows of 'a'"):
+        true_and_false_positive_rates(matrix, ["a", "b"], "a")
+    matrix = np.array([[3, 1], [0, 0]])  # every row is an "a"
+    with pytest.raises(ValueError, match="no rows of the other classes"):
+        true_and_false_positive_rates(matrix, ["a", "b"], "a")
+    with pytest.raises(ValueError, match="'z' is not one of the classes"):
+        true_and_false_positive_rates(matrix, ["a", "b"], "z")
