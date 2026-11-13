@@ -67,3 +67,19 @@ def test_the_bad_table_error_does_not_also_show_numpys_own_error():
         Dataset([[1, "a"]], [0])
     # "raise ... from None": the traceback shows only our message, not numpy's as well
     assert error.value.__suppress_context__
+
+
+def test_a_dataset_can_be_given_its_class_list():
+    # a split of a bigger data set keeps the classes of the whole data set, even one with no rows in the split
+    data = Dataset([[1], [2]], ["a", "c"], classes=["a", "b", "c"])
+    assert data.classes.tolist() == ["a", "b", "c"]
+    assert data.codes.tolist() == [0, 2]  # "c" is the third class, though "b" has no rows
+    # a class with no rows can still be the positive one
+    assert Dataset([[1]], ["a"], positive_label="b", classes=["a", "b"]).positive_label == "b"
+
+
+def test_labels_must_be_in_the_given_class_list():
+    with pytest.raises(ValueError, match="'z' is not one of the classes"):
+        Dataset([[1]], ["z"], classes=["a", "b"])
+    with pytest.raises(ValueError, match="repeat"):
+        Dataset([[1]], ["a"], classes=["a", "a"])
