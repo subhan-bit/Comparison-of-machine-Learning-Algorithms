@@ -2,8 +2,8 @@
 
 ## Week 7
 - Plan: write the two early reports and start the evaluation framework.
-- Done: fixed the problems the audits found (decision tree, tree hang and XOR rule, k-NN, data loading, set-up; issues #9, #11 to #14); reviewed the project with mutation testing and added the missing tests (#17); CI, ruff and README updates (#18); loader clean-ups (#19); moved the report to the new template. The audits took the time, so the framework and the reports did not start.
-- Next week: start the evaluation framework (#10), then write the two early reports.
+- Done: fixed the problems the audits found (decision tree, tree hang and XOR rule, k-NN, data loading, set-up; issues #9, #11 to #14, #16, #20); reviewed the project with mutation testing and added the missing tests (#17); CI, ruff and README updates (#18); loader clean-ups (#19); counted the k-NN ties again with all the fraud rows (#15); built the evaluation framework (#10): splits, folds, confusion matrix, ROC and AUC, standardising and cross-validation, run on k-NN and the tree; moved the report to the new template. The audits took the time, so the two early reports did not start.
+- Next week: write the two early reports (k-NN tie-breaking and decision trees).
 
 ## Week 6
 - Plan: the two early reports, count k-NN ties on each data set.
