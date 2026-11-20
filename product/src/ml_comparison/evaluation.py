@@ -166,6 +166,27 @@ def roc_curve(true, scores, positive_label):
     return fpr, tpr, thresholds
 
 
+def auc(fpr, tpr):
+    """The area under the ROC curve, by the trapezoid rule.
+
+    It is the chance that a random positive gets a higher score than a random negative, where a tie
+    counts as half (a tie moves the curve along a straight line, and the trapezoid under it is half
+    way). 0.5 is guessing and 1 is a perfect ranking.
+    """
+    fpr, tpr = np.asarray(fpr, dtype=float), np.asarray(tpr, dtype=float)
+    if len(fpr) != len(tpr):
+        raise ValueError("fpr and tpr must have the same length")
+    if len(fpr) < 2:
+        raise ValueError("a curve needs at least two points")
+    return float(np.trapezoid(tpr, fpr))
+
+
+def roc_auc(true, scores, positive_label):
+    """The AUC of a positive-class score: the ROC curve, then the area under it."""
+    fpr, tpr, _ = roc_curve(true, scores, positive_label)
+    return auc(fpr, tpr)
+
+
 def standardise(train, test):
     """Give every feature mean 0 and spread 1, worked out from the training rows only.
 

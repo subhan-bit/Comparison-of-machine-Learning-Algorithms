@@ -4,7 +4,9 @@ import pytest
 from ml_comparison.dataset import Dataset
 from ml_comparison.evaluation import (
     accuracy,
+    auc,
     confusion_matrix,
+    roc_auc,
     roc_curve,
     standardise,
     stratified_k_fold,
@@ -266,3 +268,46 @@ def test_bad_input_to_the_roc_curve_is_rejected():
         roc_curve(["a", "b"], [[0.9, 0.1], [0.2, 0.8]], "a")
     with pytest.raises(ValueError, match="true must be 1-D"):
         roc_curve([["a"], ["b"]], [0.9, 0.2], "a")
+
+
+def test_the_auc_of_the_worked_example_is_five_sixths():
+    # of the 6 (fraud, genuine) pairs, the fraud has the higher score in 5
+    fpr, tpr, _ = roc_curve(WORKED_TRUE, WORKED_SCORES, "fraud")
+    assert auc(fpr, tpr) == pytest.approx(5 / 6)
+    assert roc_auc(WORKED_TRUE, WORKED_SCORES, "fraud") == pytest.approx(5 / 6)
+
+
+def test_the_auc_is_1_for_a_perfect_scorer_and_0_for_a_reversed_one():
+    true = ["a", "a", "b", "b"]
+    assert roc_auc(true, [0.9, 0.8, 0.2, 0.1], "a") == pytest.approx(1)
+    assert roc_auc(true, [0.1, 0.2, 0.8, 0.9], "a") == pytest.approx(0)
+
+
+def test_tied_scores_count_as_half_a_win():
+    # the positives score 0.8 and 0.5 and the negatives 0.5 and 0.2. Of the 4 (positive, negative) pairs,
+    # the positive wins 3 and ties 1, so the AUC is (3 + 0.5) / 4
+    assert roc_auc(["a", "a", "b", "b"], [0.8, 0.5, 0.5, 0.2], "a") == pytest.approx(0.875)
+    # a scorer that gives every row the same score is no better than guessing
+    assert roc_auc(["a", "a", "b", "b", "b"], [0.3] * 5, "a") == pytest.approx(0.5)
+
+
+def test_the_auc_is_the_share_of_pairs_that_the_positive_wins_with_ties_counting_half():
+    rng = np.random.default_rng(0)
+    true = rng.choice(["a", "b"], size=200)
+    scores = rng.integers(0, 6, size=200) / 5  # only six different scores, so there are many ties
+    positive, negative = scores[true == "a"], scores[true == "b"]
+    wins = (positive[:, None] > negative[None, :]).sum() + 0.5 * (positive[:, None] == negative[None, :]).sum()
+    assert roc_auc(true, scores, "a") == pytest.approx(wins / (len(positive) * len(negative)))
+
+
+def test_a_random_scorer_has_an_auc_of_about_half():
+    rng = np.random.default_rng(1)
+    true = rng.choice(["a", "b"], size=5000)
+    assert roc_auc(true, rng.random(5000), "a") == pytest.approx(0.5, abs=0.03)
+
+
+def test_bad_input_to_the_auc_is_rejected():
+    with pytest.raises(ValueError, match="same length"):
+        auc([0, 1], [0])
+    with pytest.raises(ValueError, match="at least two points"):
+        auc([0.0], [0.0])
