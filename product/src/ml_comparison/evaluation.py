@@ -239,3 +239,24 @@ def standardise(train, test):
     spread[spread == 0] = 1  # a feature that never changes would divide by 0
     return (Dataset((train.X - mean) / spread, train.y, train.positive_label, train.classes),
             Dataset((test.X - mean) / spread, test.y, test.positive_label, test.classes))
+
+
+def cross_validate(make_model, data, k=5, seed=0, normalise=False):
+    """Cross-validation: each fold takes a turn as the test part, and a new model learns from the others.
+
+    make_model is a function that returns a new, untrained model, for example lambda: KNN(k=3). Every
+    fold gets its own model, so nothing learned in one fold can reach another. With normalise=True
+    every fold is standardised on its own, from its own training rows (see standardise), because
+    standardising the whole data set first would let the test rows leak into the training. Returns a
+    dictionary with the results of each fold (see evaluate), their mean accuracy, and their mean AUC if
+    the data has a positive class.
+    """
+    folds = []
+    for train, test in stratified_k_fold(data, k, seed):
+        if normalise:
+            train, test = standardise(train, test)
+        folds.append(evaluate(make_model(), train, test))
+    results = {"folds": folds, "mean_accuracy": float(np.mean([fold["accuracy"] for fold in folds]))}
+    if data.positive_label is not None:
+        results["mean_auc"] = float(np.mean([fold["auc"] for fold in folds]))
+    return results

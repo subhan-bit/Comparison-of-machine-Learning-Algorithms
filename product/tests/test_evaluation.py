@@ -8,6 +8,7 @@ from ml_comparison.evaluation import (
     accuracy,
     auc,
     confusion_matrix,
+    cross_validate,
     evaluate,
     positive_scores,
     roc_auc,
@@ -391,3 +392,121 @@ def test_evaluate_without_a_positive_class_gives_only_the_accuracy_and_the_matri
     assert sorted(evaluate(KNN(k=3), train, test)) == ["accuracy", "confusion_matrix"]
     # a positive class can also be named in the call, and 0 counts as a class like any other
     assert "auc" in evaluate(KNN(k=3), train, test, positive_label=0)
+
+
+def test_cross_validation_tests_every_row_exactly_once():
+    data = with_positive_class(make_blobs(60, seed=1), 1)
+    results = cross_validate(lambda: KNN(k=3), data, k=5, seed=0)
+    assert len(results["folds"]) == 5
+    assert sum(fold["confusion_matrix"] for fold in results["folds"]).sum() == len(data)
+    assert results["mean_accuracy"] >= 0.95 and results["mean_auc"] >= 0.95
+
+
+def test_cross_validation_makes_a_fresh_model_for_each_fold():
+    made = []
+
+    def make_model():
+        made.append(KNN(k=3))
+        return made[-1]
+
+    cross_validate(make_model, with_positive_class(make_blobs(30, seed=1), 1), k=3)
+    assert len(made) == 3
+    assert len({id(model) for model in made}) == 3
+
+
+def test_cross_validation_runs_k_nn_and_a_tree_on_artificial_data():
+    data = with_positive_class(make_xor(300, seed=1), 1)
+    for make_model in (lambda: KNN(k=5), DecisionTree):
+        results = cross_validate(make_model, data, k=5, seed=0)
+        assert results["mean_accuracy"] >= 0.9
+        assert results["mean_auc"] >= 0.9
+
+
+def test_the_means_are_the_averages_of_the_fold_results():
+    data = with_positive_class(make_xor(100, seed=1), 1)  # the folds differ in size and in how well they did
+    results = cross_validate(lambda: KNN(k=3), data, k=3, seed=2)
+    accuracies = [fold["accuracy"] for fold in results["folds"]]
+    aucs = [fold["auc"] for fold in results["folds"]]
+    assert results["mean_accuracy"] == pytest.approx(sum(accuracies) / 3)
+    assert results["mean_auc"] == pytest.approx(sum(aucs) / 3)
+
+
+def test_the_same_seed_gives_the_same_cross_validation_results():
+    data = with_positive_class(make_xor(100, seed=1), 1)
+    first = cross_validate(lambda: KNN(k=3), data, k=4, seed=2)
+    again = cross_validate(lambda: KNN(k=3), data, k=4, seed=2)
+    assert [fold["accuracy"] for fold in first["folds"]] == [fold["accuracy"] for fold in again["folds"]]
+    assert first["mean_auc"] == again["mean_auc"]
+
+
+def test_cross_validation_works_when_one_class_is_rare():
+    # 6 rare rows among 306, in 3 folds: every test fold gets 2 of them, so the AUC is defined in every fold
+    rng = np.random.default_rng(0)
+    X = np.vstack([rng.normal(0, 1, size=(300, 2)), rng.normal(4, 1, size=(6, 2))])
+    data = Dataset(X, ["common"] * 300 + ["rare"] * 6, positive_label="rare")
+    results = cross_validate(lambda: KNN(k=3), data, k=3, seed=0)
+    assert [int(fold["confusion_matrix"][1].sum()) for fold in results["folds"]] == [2, 2, 2]  # rare rows tested
+    assert results["mean_auc"] > 0.9
+
+
+def test_cross_validation_needs_rows_of_the_positive_class_in_every_fold():
+    # 3 rare rows cannot be in each of 5 test folds, so the rates are undefined for two of the folds
+    rng = np.random.default_rng(0)
+    X = np.vstack([rng.normal(0, 1, size=(50, 2)), rng.normal(4, 1, size=(3, 2))])
+    data = Dataset(X, ["common"] * 50 + ["rare"] * 3, positive_label="rare")
+    with pytest.raises(ValueError, match="no rows of 'rare'"):
+        cross_validate(lambda: KNN(k=3), data, k=5)
+
+
+def test_cross_validation_without_a_positive_class_has_no_auc():
+    results = cross_validate(lambda: KNN(k=3), make_blobs(30, seed=1), k=3)
+    assert "mean_accuracy" in results and "mean_auc" not in results
+
+
+class RecordingKNN(KNN):
+    """A k-NN that notes the mean of the rows it learns from and the mean of the rows it is asked about."""
+
+    def __init__(self, learned_from, asked_about):
+        super().__init__(k=3)
+        self.learned_from, self.asked_about = learned_from, asked_about
+
+    def train(self, data):
+        self.learned_from.append(data.X.mean(axis=0))
+        super().train(data)
+
+    def predict(self, X):
+        self.asked_about.append(X.mean(axis=0))
+        return super().predict(X)
+
+
+def test_cross_validation_can_standardise_inside_every_fold():
+    data = make_blobs(30, seed=1)  # the features have a mean far from 0, so standardising is easy to see
+    learned_from, asked_about = [], []
+    cross_validate(lambda: RecordingKNN(learned_from, asked_about), data, k=3, seed=0, normalise=True)
+    assert len(learned_from) == 3
+    assert np.allclose(learned_from, 0)  # in every fold the training rows have mean 0 ...
+    for (train, test), seen in zip(stratified_k_fold(data, 3, seed=0), asked_about, strict=True):
+        # ... and the test rows were changed with the mean and spread of the training rows, not their own
+        assert np.allclose(seen, (test.X.mean(axis=0) - train.X.mean(axis=0)) / train.X.std(axis=0))
+
+
+def test_cross_validation_leaves_the_rows_as_they_are_unless_asked_to_standardise():
+    data = make_blobs(30, seed=1)
+    learned_from, asked_about = [], []
+    cross_validate(lambda: RecordingKNN(learned_from, asked_about), data, k=3, seed=0)
+    folds = stratified_k_fold(data, 3, seed=0)
+    for (train, test), learned, asked in zip(folds, learned_from, asked_about, strict=True):
+        assert np.allclose(learned, train.X.mean(axis=0))
+        assert np.allclose(asked, test.X.mean(axis=0))
+
+
+def test_standardising_inside_the_folds_helps_k_nn_when_one_feature_has_a_huge_scale():
+    blobs = make_blobs(60, seed=1)
+    # a useless third feature, on a scale of about 1000, decides every distance until the features are standardised
+    useless = np.random.default_rng(2).normal(0, 1000, size=(len(blobs), 1))
+    data = Dataset(np.hstack([blobs.X, useless]), blobs.y, positive_label=1)
+    plain = cross_validate(lambda: KNN(k=3), data, k=5)
+    standardised = cross_validate(lambda: KNN(k=3), data, k=5, normalise=True)
+    assert plain["mean_accuracy"] <= 0.7  # not much better than guessing
+    assert standardised["mean_accuracy"] >= 0.95
+    assert standardised["mean_auc"] > plain["mean_auc"]
