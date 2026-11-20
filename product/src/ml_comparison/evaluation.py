@@ -130,6 +130,42 @@ def true_and_false_positive_rates(matrix, classes, positive_label):
             false_positives / (false_positives + true_negatives))
 
 
+def roc_curve(true, scores, positive_label):
+    """The ROC curve: the false and true positive rates for every threshold on the positive-class score.
+
+    A row is called positive when its score is at least the threshold. Returns (false positive rates,
+    true positive rates, thresholds). The curve starts at (0, 0), where the threshold is infinite and
+    nothing is flagged. Rows with the same score are one step, because no threshold can tell them
+    apart, so a tie moves the curve along a straight line across the whole group.
+    """
+    true, scores = np.asarray(true), np.asarray(scores, dtype=float)
+    for name, values in (("true", true), ("scores", scores)):
+        if values.ndim != 1:
+            raise ValueError(f"{name} must be 1-D, got shape {values.shape}")
+    if len(true) != len(scores):
+        raise ValueError("true and scores must have the same length")
+    if not np.isfinite(scores).all():
+        raise ValueError("scores must be finite numbers (no NaN or inf)")
+    is_positive = true == positive_label
+    n_positive = int(is_positive.sum())
+    n_negative = len(true) - n_positive
+    if n_positive == 0:
+        raise ValueError(f"there are no rows of {positive_label!r}, so there is no ROC curve")
+    if n_negative == 0:
+        raise ValueError("there are no rows of the other classes, so there is no ROC curve")
+
+    order = np.argsort(-scores)  # highest score first
+    sorted_scores, sorted_positive = scores[order], is_positive[order]
+    caught = np.cumsum(sorted_positive)  # positives with a score at or above this row's score
+    false_alarms = np.cumsum(~sorted_positive)
+    # only the last row of each group of equal scores counts: one point for each threshold
+    last_of_group = np.append(sorted_scores[1:] != sorted_scores[:-1], True)
+    fpr = np.concatenate([[0.0], false_alarms[last_of_group] / n_negative])
+    tpr = np.concatenate([[0.0], caught[last_of_group] / n_positive])
+    thresholds = np.concatenate([[np.inf], sorted_scores[last_of_group]])
+    return fpr, tpr, thresholds
+
+
 def standardise(train, test):
     """Give every feature mean 0 and spread 1, worked out from the training rows only.
 

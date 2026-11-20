@@ -5,6 +5,7 @@ from ml_comparison.dataset import Dataset
 from ml_comparison.evaluation import (
     accuracy,
     confusion_matrix,
+    roc_curve,
     standardise,
     stratified_k_fold,
     train_test_split,
@@ -219,3 +220,49 @@ def test_standardising_does_not_change_the_original_data_sets():
 def test_standardising_needs_training_rows():
     with pytest.raises(ValueError, match="no training rows"):
         standardise(Dataset([], []), Dataset([[1]], ["a"]))
+
+
+# the worked example in documents/research/class_scores_and_roc.md: five transactions and their fraud scores
+WORKED_TRUE = ["fraud", "genuine", "fraud", "genuine", "genuine"]
+WORKED_SCORES = [0.9, 0.8, 0.7, 0.4, 0.2]
+
+
+def test_the_roc_curve_matches_the_worked_example_in_the_notes():
+    fpr, tpr, thresholds = roc_curve(WORKED_TRUE, WORKED_SCORES, "fraud")
+    # the table in the notes: at each threshold, the share of frauds caught and of genuine rows flagged
+    assert thresholds.tolist() == [np.inf, 0.9, 0.8, 0.7, 0.4, 0.2]  # the first point is "flag nothing"
+    assert tpr.tolist() == pytest.approx([0, 0.5, 0.5, 1, 1, 1])
+    assert fpr.tolist() == pytest.approx([0, 0, 1 / 3, 1 / 3, 2 / 3, 1])
+
+
+def test_rows_with_the_same_score_make_one_step_of_the_roc_curve():
+    # two frauds and two genuine rows all score 0.5: one threshold flags all four at once
+    fpr, tpr, thresholds = roc_curve(["a", "a", "b", "b"], [0.5, 0.5, 0.5, 0.5], "a")
+    assert thresholds.tolist() == [np.inf, 0.5]
+    assert (fpr.tolist(), tpr.tolist()) == ([0, 1], [0, 1])  # straight from (0, 0) to (1, 1)
+
+
+def test_the_roc_curve_does_not_depend_on_the_row_order():
+    true = np.array(["a", "b", "a", "b", "b", "a", "b"])
+    scores = np.array([0.8, 0.8, 0.6, 0.3, 0.6, 0.1, 0.3])  # several ties
+    order = np.random.default_rng(3).permutation(len(true))
+    first, second = roc_curve(true, scores, "a"), roc_curve(true[order], scores[order], "a")
+    for one, other in zip(first, second, strict=True):
+        assert one.tolist() == other.tolist()
+
+
+def test_bad_input_to_the_roc_curve_is_rejected():
+    with pytest.raises(ValueError, match="same length"):
+        roc_curve(["a", "b"], [0.1], "a")
+    with pytest.raises(ValueError, match="no rows of 'a'"):
+        roc_curve(["b", "b"], [0.1, 0.2], "a")
+    with pytest.raises(ValueError, match="no rows of the other classes"):
+        roc_curve(["a", "a"], [0.1, 0.2], "a")
+    for bad in (float("nan"), float("inf"), -float("inf")):  # a NaN would quietly give a wrong AUC
+        with pytest.raises(ValueError, match="finite"):
+            roc_curve(["a", "b"], [0.5, bad], "a")
+    # one column of scores is needed, not the whole table that predict_scores gives
+    with pytest.raises(ValueError, match="scores must be 1-D"):
+        roc_curve(["a", "b"], [[0.9, 0.1], [0.2, 0.8]], "a")
+    with pytest.raises(ValueError, match="true must be 1-D"):
+        roc_curve([["a"], ["b"]], [0.9, 0.2], "a")
