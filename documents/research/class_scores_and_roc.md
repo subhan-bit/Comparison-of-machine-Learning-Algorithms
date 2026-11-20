@@ -19,6 +19,14 @@ Trying every threshold and plotting TPR against FPR gives the ROC curve.
 The area under it (AUC) is the chance that a random positive gets a higher
 score than a random negative [1]. Guessing gives the diagonal line, AUC 0.5.
 
+Rows with the same score cannot be told apart by any threshold, so they move
+the curve together, along a straight line. The area under that line counts
+each tied (positive, negative) pair as half a win, so the AUC is the chance
+that a random positive scores higher than a random negative, plus half the
+chance that they tie. This matters for k-NN, whose scores are vote shares
+(with k=3: 0, 1/3, 2/3 or 1), so many rows share a score. A model that gives
+every row the same score gets AUC 0.5, which is right: it ranks nothing.
+
 When mistakes cost different amounts, the scores also give the cheapest
 decision. If p is the score for "positive", say positive when the expected
 cost of saying negative is higher:
@@ -39,6 +47,11 @@ Five test transactions, with their fraud scores. F = fraud, G = genuine.
 
 AUC: of the 6 (fraud, genuine) pairs, the fraud has the higher score in 5,
 so AUC = 5/6 = 0.83.
+
+Ties: if the positives score 0.8 and 0.5 and the negatives score 0.5 and 0.2,
+then of the 4 pairs the positive wins 3 and ties 1, so AUC = (3 + 0.5) / 4 =
+0.875. The code gives the same, and the tests check it by counting the pairs
+one by one.
 
 Cost: if missing a fraud costs 10 and a false alarm costs 1, flag anything
 with p * 10 > (1 - p) * 1, which is p > 1/11, about 0.09.
