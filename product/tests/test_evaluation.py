@@ -1,12 +1,14 @@
 import numpy as np
 import pytest
 
+from ml_comparison.artificial import make_blobs, make_xor
 from ml_comparison.dataset import Dataset
 from ml_comparison.decision_tree import DecisionTree
 from ml_comparison.evaluation import (
     accuracy,
     auc,
     confusion_matrix,
+    evaluate,
     positive_scores,
     roc_auc,
     roc_curve,
@@ -345,3 +347,47 @@ def test_bad_input_to_the_positive_scores_is_rejected():
     model.train(Dataset([[1], [2]], ["a", "b"]))
     with pytest.raises(ValueError, match="'z' is not one of the classes"):
         positive_scores(model, [[1]], "z")
+
+
+def with_positive_class(data, label):
+    """The artificial data sets have no positive class, so give them one."""
+    return Dataset(data.X, data.y, positive_label=label)
+
+
+def test_k_nn_and_a_tree_can_both_be_run_through_evaluate_on_artificial_data():
+    train = with_positive_class(make_blobs(100, seed=1), 1)
+    test = with_positive_class(make_blobs(50, seed=2), 1)
+    for model in (KNN(k=3), DecisionTree()):
+        results = evaluate(model, train, test)
+        assert results["accuracy"] >= 0.95
+        assert results["auc"] >= 0.95
+        assert results["confusion_matrix"].sum() == len(test)
+        assert results["true_positive_rate"] >= 0.9
+        assert results["false_positive_rate"] <= 0.1
+
+
+def test_evaluate_works_on_xor_where_no_straight_line_can_split_the_classes():
+    train = with_positive_class(make_xor(400, seed=1), 1)
+    test = with_positive_class(make_xor(200, seed=2), 1)
+    for model in (KNN(k=5), DecisionTree()):
+        results = evaluate(model, train, test)
+        assert results["accuracy"] >= 0.9
+        assert results["auc"] >= 0.9
+
+
+def test_evaluate_gives_the_same_numbers_as_the_separate_functions_put_together_by_hand():
+    train = with_positive_class(make_xor(300, seed=1), 1)
+    test = with_positive_class(make_xor(100, seed=2), 1)
+    model = KNN(k=3)
+    results = evaluate(model, train, test)
+    predicted = model.predict(test.X)  # the model is trained now
+    assert results["accuracy"] == accuracy(test.y, predicted)
+    assert results["confusion_matrix"].tolist() == confusion_matrix(test.y, predicted, model.classes_).tolist()
+    assert results["auc"] == roc_auc(test.y, positive_scores(model, test.X, 1), 1)
+
+
+def test_evaluate_without_a_positive_class_gives_only_the_accuracy_and_the_matrix():
+    train, test = make_blobs(50, seed=1), make_blobs(20, seed=2)
+    assert sorted(evaluate(KNN(k=3), train, test)) == ["accuracy", "confusion_matrix"]
+    # a positive class can also be named in the call, and 0 counts as a class like any other
+    assert "auc" in evaluate(KNN(k=3), train, test, positive_label=0)

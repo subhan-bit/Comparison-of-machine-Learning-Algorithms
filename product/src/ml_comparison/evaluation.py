@@ -202,6 +202,28 @@ def positive_scores(model, X, positive_label):
     return model.predict_scores(X)[:, classes.index(positive_label)]
 
 
+def evaluate(model, train, test, positive_label=None):
+    """Train a model on the training part, test it on the test part, and measure how well it did.
+
+    Returns a dictionary with the accuracy and the confusion matrix. If there is a positive class
+    (given here, or the one of the training data) it also has the true and false positive rates and
+    the AUC of the model's score for that class.
+    """
+    model.train(train)
+    predicted = model.predict(test.X)
+    matrix = confusion_matrix(test.y, predicted, model.classes_)
+    results = {"accuracy": accuracy(test.y, predicted), "confusion_matrix": matrix}
+
+    if positive_label is None:
+        positive_label = train.positive_label
+    if positive_label is not None:
+        true_positive_rate, false_positive_rate = true_and_false_positive_rates(matrix, model.classes_, positive_label)
+        results["true_positive_rate"] = true_positive_rate
+        results["false_positive_rate"] = false_positive_rate
+        results["auc"] = roc_auc(test.y, positive_scores(model, test.X, positive_label), positive_label)
+    return results
+
+
 def standardise(train, test):
     """Give every feature mean 0 and spread 1, worked out from the training rows only.
 
