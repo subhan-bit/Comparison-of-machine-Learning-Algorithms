@@ -106,6 +106,31 @@ accuracy on its own training rows says little [1][2].
    Wine data has the same problem: proline runs from 278 to 1680 and hue from
    0.48 to 1.71 (data_sets.md).
 
+## Why it matters for my project
+- The fraud data has 492 frauds in 284,807 rows. With 5 stratified folds every
+  fold gets 98 or 99 of them, so every test part has fraud to find. A plain
+  random split gives no such promise (example 1). If a test part has no rows
+  of the positive class, the code stops with an error instead of giving a
+  number that means nothing.
+- Every algorithm is measured by the same functions on the same seeded folds,
+  so RQ1 to RQ3 compare the algorithms and not lucky splits.
+- RQ3 (normalisation) is only fair if the scaling is worked out from the
+  training rows of each fold. Standardising uses no labels, so leaking the
+  test rows into it is milder than leaking labels: Hastie et al. say that
+  steps which do not use the class labels can be done before the rows are
+  left out [1]. I still do it inside each fold, because a new row in real
+  use only has the training mean and spread, and the test should do the same.
+
+## Still to learn
+- How far apart two algorithms must be before the difference is more than
+  chance. The framework gives the mean of the folds but not their spread, and
+  there is no test yet for comparing two algorithms on the same folds.
+- Choosing k or the depth of the tree without using the test part. That needs
+  a validation part inside each training part (nested cross-validation).
+- The AUC for more than two classes, for the multi-class reduction strategies.
+- The expected cost from the confusion matrix and a cost matrix. It is not in
+  the framework yet.
+
 ## Sources
 [1] T. Hastie, R. Tibshirani and J. Friedman. The Elements of Statistical
     Learning, 2nd ed. Springer, 2009. Section 7.10 (cross-validation, with
