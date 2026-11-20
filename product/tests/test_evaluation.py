@@ -2,17 +2,21 @@ import numpy as np
 import pytest
 
 from ml_comparison.dataset import Dataset
+from ml_comparison.decision_tree import DecisionTree
 from ml_comparison.evaluation import (
     accuracy,
     auc,
     confusion_matrix,
+    positive_scores,
     roc_auc,
     roc_curve,
     standardise,
     stratified_k_fold,
+    subset,
     train_test_split,
     true_and_false_positive_rates,
 )
+from ml_comparison.knn import KNN
 
 
 def rare_class_data(n_rare=10, n_common=190):
@@ -311,3 +315,33 @@ def test_bad_input_to_the_auc_is_rejected():
         auc([0, 1], [0])
     with pytest.raises(ValueError, match="at least two points"):
         auc([0.0], [0.0])
+
+
+def test_the_positive_score_is_the_column_of_the_positive_class():
+    # the classes are sorted, so "fraud" is column 0 here, but positive_scores finds the column by name
+    data = Dataset([[0], [1], [10], [11]], ["fraud", "fraud", "genuine", "genuine"])
+    model = KNN(k=1)
+    model.train(data)
+    assert positive_scores(model, [[0.2], [10.2]], "fraud").tolist() == [1.0, 0.0]
+    assert positive_scores(model, [[0.2], [10.2]], "genuine").tolist() == [0.0, 1.0]
+
+
+def test_the_positive_score_column_is_the_right_one_whichever_classes_land_in_a_split():
+    # three classes in the whole data set; this training part has no "b" rows, but "b" is still a score column
+    whole = Dataset(np.arange(9.0).reshape(-1, 1), ["a"] * 3 + ["b"] * 3 + ["c"] * 3, positive_label="c")
+    train = subset(whole, np.array([0, 1, 2, 6, 7, 8]))
+    for model in (KNN(k=1), DecisionTree()):
+        model.train(train)
+        assert model.classes_.tolist() == ["a", "b", "c"]
+        assert model.predict_scores([[7.0]]).shape == (1, 3)
+        assert positive_scores(model, [[7.0]], "c")[0] > 0.5  # the "c" score, and not the one of "b"
+        assert positive_scores(model, [[7.0]], "b")[0] < 0.5
+
+
+def test_bad_input_to_the_positive_scores_is_rejected():
+    model = KNN(k=1)
+    with pytest.raises(RuntimeError, match="train"):
+        positive_scores(model, [[1]], "a")
+    model.train(Dataset([[1], [2]], ["a", "b"]))
+    with pytest.raises(ValueError, match="'z' is not one of the classes"):
+        positive_scores(model, [[1]], "z")

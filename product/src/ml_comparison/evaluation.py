@@ -187,6 +187,21 @@ def roc_auc(true, scores, positive_label):
     return auc(fpr, tpr)
 
 
+def positive_scores(model, X, positive_label):
+    """The score of the positive class for each row of X, from a trained model.
+
+    The column is found by the name of the class, in the model's own class list. That list is the one
+    of the whole data set (see subset), so the column is the right one even when the training part had
+    no rows of some class.
+    """
+    if model.classes_ is None:
+        raise RuntimeError("call train() before asking for scores")
+    classes = model.classes_.tolist()
+    if positive_label not in classes:
+        raise ValueError(f"{positive_label!r} is not one of the classes")
+    return model.predict_scores(X)[:, classes.index(positive_label)]
+
+
 def standardise(train, test):
     """Give every feature mean 0 and spread 1, worked out from the training rows only.
 
